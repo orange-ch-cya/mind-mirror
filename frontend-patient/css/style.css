@@ -1,0 +1,213 @@
+/* 心镜 · 患者端样式
+   设计基调：温暖、柔和、信任（文档 3.1）。大尺寸触控目标，移动端优先。 */
+
+:root {
+  --bg: #F7F3EC;            /* 暖白背景 */
+  --card: #FFFFFF;
+  --primary: #4A7C74;       /* 沉稳青绿（主色） */
+  --primary-soft: #E4EFEC;
+  --accent: #D98E63;        /* 暖橙点缀 */
+  --text: #33302B;
+  --text-muted: #8A857C;
+  --danger: #B4594F;
+  --border: #E7E0D4;
+  --radius: 18px;
+  --shadow: 0 6px 24px rgba(90, 70, 50, 0.08);
+  font-size: 16px;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body { height: 100%; }
+
+body {
+  font-family: "PingFang SC", "Hiragino Sans GB", "Noto Sans SC",
+               "Microsoft YaHei", system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.7;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ---------- 头部 ---------- */
+.site-header {
+  text-align: center;
+  padding: 40px 20px 16px;
+}
+.brand { display: flex; align-items: center; justify-content: center; gap: 10px; }
+.brand-mark {
+  width: 44px; height: 44px; border-radius: 50%;
+  background: linear-gradient(160deg, #6FA59B, #4A7C74);
+  color: #fff; font-size: 22px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 6px 18px rgba(74, 124, 116, 0.35);
+}
+.brand-name { font-size: 28px; font-weight: 700; letter-spacing: 6px; color: var(--primary); }
+.brand-slogan { margin-top: 12px; color: var(--text-muted); font-size: 15px; }
+
+/* ---------- 布局 ---------- */
+.container { max-width: 560px; margin: 0 auto; padding: 8px 20px 60px; }
+.view { animation: fadeIn 0.35s ease; }
+.hidden { display: none !important; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; } }
+
+h1 { font-size: 22px; margin: 18px 0 12px; }
+h2 { font-size: 18px; margin: 10px 0 8px; }
+
+/* ---------- 卡片 ---------- */
+.intro-card, .tips-card, .dialog-card, .consent-text, .question-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  box-shadow: var(--shadow);
+}
+.intro-card p { font-size: 15px; color: #55504A; margin-bottom: 8px; }
+
+/* ---------- 按钮 ---------- */
+.btn-primary, .btn-ghost, .btn-danger {
+  display: block; width: 100%;
+  padding: 15px 18px; margin-top: 14px;
+  border: none; border-radius: 14px;
+  font-size: 17px; font-weight: 600; cursor: pointer;
+  transition: opacity 0.15s, transform 0.1s;
+  -webkit-tap-highlight-color: transparent;
+}
+.btn-primary { background: var(--primary); color: #fff; }
+.btn-primary:disabled {
+  background: #C9D4D1; color: #F2F5F4; cursor: not-allowed;
+}
+.btn-ghost {
+  background: transparent; color: var(--text-muted);
+  border: 1px solid var(--border); font-weight: 500;
+}
+.btn-danger { background: var(--danger); color: #fff; }
+.btn-primary:active, .btn-danger:active { transform: scale(0.98); }
+.link-btn {
+  background: none; border: none; color: var(--primary);
+  font-size: 14px; text-decoration: underline; cursor: pointer; padding: 4px 0;
+}
+.tip-text { color: var(--danger); font-size: 14px; margin-top: 10px; text-align: center; }
+
+/* ---------- 邀请码输入 ---------- */
+.invite-box { margin-top: 22px; display: flex; gap: 10px; }
+.invite-box input {
+  flex: 1; padding: 15px 16px; font-size: 18px; letter-spacing: 4px; text-align: center;
+  border: 1.5px solid var(--border); border-radius: 14px;
+  background: var(--card); outline: none;
+}
+.invite-box input:focus { border-color: var(--primary); }
+.invite-box .btn-primary { width: auto; margin-top: 0; padding: 15px 22px; white-space: nowrap; }
+.anon-entry { text-align: center; margin-top: 16px; }
+
+/* ---------- 进度条 ---------- */
+.progress {
+  height: 6px; background: #EAE3D8; border-radius: 4px; overflow: hidden;
+  margin: 6px 0 14px;
+}
+.progress-fill {
+  height: 100%; width: 0%;
+  background: linear-gradient(90deg, #8FBDB4, var(--primary));
+  border-radius: 4px; transition: width 0.4s ease;
+}
+.scale-label { color: var(--text-muted); font-size: 14px; }
+
+/* ---------- 题目与选项 ---------- */
+.question-card { margin-top: 10px; }
+.question-text { font-size: 18px; font-weight: 600; line-height: 1.6; margin-bottom: 18px; }
+.options { display: flex; flex-direction: column; gap: 10px; }
+.option-btn {
+  display: block; width: 100%; text-align: left;
+  padding: 15px 16px; border-radius: 14px;
+  border: 1.5px solid var(--border); background: #FDFBF7;
+  font-size: 16px; cursor: pointer; line-height: 1.5;
+  transition: border-color 0.15s, background 0.15s;
+}
+.option-btn small { display: block; color: var(--text-muted); font-size: 13px; margin-top: 2px; }
+.option-btn.selected {
+  border-color: var(--primary); background: var(--primary-soft);
+  box-shadow: inset 0 0 0 1px var(--primary);
+}
+.option-btn:active { transform: scale(0.99); }
+
+/* ---------- 知情同意 ---------- */
+.consent-text ol { padding-left: 22px; }
+.consent-text li { margin-bottom: 10px; font-size: 15px; }
+.consent-check {
+  display: flex; align-items: flex-start; gap: 10px;
+  margin: 16px 2px; font-size: 15px; cursor: pointer;
+}
+.consent-check input { width: 20px; height: 20px; margin-top: 2px; accent-color: var(--primary); }
+
+/* ---------- 过渡动画（呼吸） ---------- */
+.breath {
+  width: 110px; height: 110px; margin: 60px auto 24px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #B9D6CF, #6FA59B);
+  animation: breathe 3s ease-in-out infinite;
+}
+@keyframes breathe {
+  0%, 100% { transform: scale(1); opacity: 0.75; }
+  50% { transform: scale(1.22); opacity: 1; }
+}
+.transition-text { text-align: center; color: var(--text-muted); font-size: 16px; }
+
+/* ---------- 作答页头部 ---------- */
+.assess-top { position: sticky; top: 0; background: var(--bg); padding-top: 8px; z-index: 5; }
+.assess-head { display: flex; justify-content: space-between; align-items: baseline; }
+.assess-count { font-size: 13px; color: var(--text-muted); }
+
+/* ---------- 答案确认列表 ---------- */
+.answer-list { display: flex; flex-direction: column; gap: 8px; margin: 12px 0; }
+.answer-row {
+  display: flex; justify-content: space-between; gap: 12px;
+  padding: 10px 14px; border: 1px solid var(--border);
+  border-radius: 12px; background: #FDFBF7; font-size: 14px;
+}
+.answer-row .q-no { color: var(--text-muted); white-space: nowrap; }
+.answer-row button {
+  border: none; background: none; color: var(--primary);
+  font-size: 13px; cursor: pointer; text-decoration: underline; white-space: nowrap;
+}
+.answer-row .a-text { flex: 1; text-align: right; color: var(--primary); }
+
+/* ---------- 结果页 ---------- */
+.result-heart { font-size: 40px; text-align: center; margin-top: 26px; animation: breathe 2.4s ease-in-out infinite; }
+#result-closing { text-align: center; font-size: 19px; line-height: 1.7; }
+.result-encourage { margin: 14px 0; padding: 16px; border-left: 4px solid var(--accent); background: #FCF3EA; border-radius: 10px; font-size: 15px; }
+.tips-card ul { padding-left: 20px; }
+.tips-card li { margin-bottom: 8px; font-size: 14.5px; }
+.disclaimer {
+  margin-top: 18px; padding: 12px 14px;
+  background: #F1EEE8; border-radius: 10px;
+  font-size: 12.5px; color: #6E6A62; line-height: 1.8;
+}
+.contact-hint { margin-top: 14px; font-size: 14px; color: #55504A; }
+.revoke-entry { text-align: center; margin-top: 20px; }
+
+/* ---------- 弹层 ---------- */
+.modal {
+  position: fixed; inset: 0; z-index: 50;
+  background: rgba(40, 35, 30, 0.45);
+  display: flex; align-items: center; justify-content: center;
+  padding: 24px;
+}
+.modal-box {
+  background: var(--card); border-radius: var(--radius);
+  padding: 24px; max-width: 420px; width: 100%;
+  box-shadow: 0 16px 48px rgba(0,0,0,0.18);
+}
+.modal-box p { font-size: 15px; margin-bottom: 8px; }
+
+/* ---------- 输入与页脚 ---------- */
+input[type="text"] { width: 100%; padding: 14px; font-size: 16px; border: 1.5px solid var(--border); border-radius: 12px; outline: none; }
+input:focus { border-color: var(--primary); }
+
+.site-footer {
+  text-align: center; padding: 20px; color: #B0AAA0; font-size: 12px; line-height: 1.8;
+  border-top: 1px solid var(--border);
+}
+
+@media (min-width: 700px) {
+  .container { max-width: 620px; }
+}

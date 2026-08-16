@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#F7F3EC">
+<title>心镜 · 心理健康自测工具</title>
+<link rel="stylesheet" href="/patient/static/css/style.css">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="brand">
+    <span class="brand-mark" aria-hidden="true">心</span>
+    <span class="brand-name">心镜</span>
+  </div>
+  <p class="brand-slogan">了解近期的心理状态，从一个简单的自我觉察开始。</p>
+</header>
+
+<main class="container">
+
+  <!-- 首页 -->
+  <section id="view-home" class="view">
+    <div class="intro-card">
+      <p>本平台提供标准化的心理状态自我评估工具。您将在专业人士的邀请下完成一份或多份问卷，您填写的内容将安全地传递给邀请您的人士，由他们在适当的时候与您沟通。</p>
+      <button class="link-btn" id="btn-more-info">了解更多</button>
+      <div id="more-info" class="hidden">
+        <p><b>数据去向：</b>您的答题数据仅发送给向您提供邀请码的人士（可能是医生、心理咨询师、学校老师或家长），平台运营方不查看、不使用您的个人数据。</p>
+        <p><b>隐私保护：</b>本平台不采集您的姓名、手机号等任何可识别身份的信息，您完全匿名参与。</p>
+        <p><b>性质说明：</b>本平台不是医疗工具，测评结果不代表临床诊断。</p>
+      </div>
+    </div>
+
+    <div class="invite-box">
+      <input id="input-code" type="text" maxlength="8" placeholder="请输入邀请码"
+             autocomplete="off" spellcheck="false">
+      <button id="btn-start" class="btn-primary" disabled>开始测评</button>
+    </div>
+    <p id="code-tip" class="tip-text hidden"></p>
+
+    <p class="anon-entry">
+      <button class="link-btn" id="btn-anon">我没有邀请码，想先了解一下</button>
+    </p>
+  </section>
+
+  <!-- 知情同意 -->
+  <section id="view-consent" class="view hidden">
+    <h1>知情同意书</h1>
+    <div class="consent-text">
+      <p>在开始测评之前，请您仔细阅读以下内容：</p>
+      <ol>
+        <li><b>平台性质：</b>本平台为非医疗工具。测试结果不代表临床诊断，不能替代专业医生的面诊评估。</li>
+        <li><b>数据去向：</b>您填写的所有答题数据将发送给向您提供邀请码的人士（可能是医生、心理咨询师、学校老师或家长）。平台运营方不查看、不使用您的个人数据。</li>
+        <li><b>结果获取：</b>您本人无法在本平台查看详细的分数和报告，这是平台的有意设计，以避免未经专业解读的数字对您造成不必要的困扰。详细结果将由向您提供邀请码的人士在线下以适当的方式与您沟通。</li>
+        <li><b>撤回权利：</b>您有权在提交测评后的 24 小时内撤回数据。撤回后数据将被彻底删除，邀请码作废。撤回操作可在结果页面找到入口。</li>
+        <li><b>自愿参与：</b>您完全自愿参与本次测评，可以随时停止作答并离开页面，未提交的数据不会被保存。</li>
+      </ol>
+    </div>
+    <label class="consent-check">
+      <input type="checkbox" id="consent-check">
+      <span>我已认真阅读并理解以上内容，同意参与测评</span>
+    </label>
+    <button id="btn-consent-start" class="btn-primary" disabled>开始答题</button>
+    <button class="btn-ghost" data-go="#home">不同意，返回</button>
+  </section>
+
+  <!-- 快速筛查 -->
+  <section id="view-screening" class="view hidden">
+    <div class="progress"><div id="screen-bar" class="progress-fill"></div></div>
+    <p class="scale-label">快速筛查 · 第<span id="screen-no">1</span>题 / 共<span id="screen-total">4</span>题</p>
+    <div class="question-card">
+      <p class="question-text" id="screen-question"></p>
+      <div class="options" id="screen-options"></div>
+    </div>
+  </section>
+
+  <!-- 过渡动画 -->
+  <section id="view-transition" class="view hidden">
+    <div class="breath" aria-hidden="true"></div>
+    <p class="transition-text">正在整理您的情况...</p>
+  </section>
+
+  <!-- 深度包说明 -->
+  <section id="view-intro" class="view hidden">
+    <div class="dialog-card">
+      <h1>接下来是更详细的问卷</h1>
+      <p id="intro-text"></p>
+      <ul class="scale-list" id="intro-scales"></ul>
+      <button id="btn-intro-start" class="btn-primary">开始答题</button>
+    </div>
+  </section>
+
+  <!-- 量表休息页 -->
+  <section id="view-break" class="view hidden">
+    <div class="breath" aria-hidden="true"></div>
+    <h1 id="break-title"></h1>
+    <p id="break-sub"></p>
+    <button id="btn-break-continue" class="btn-primary">准备好了，继续</button>
+  </section>
+
+  <!-- 深度作答 -->
+  <section id="view-assessment" class="view hidden">
+    <div class="assess-top">
+      <div class="assess-head">
+        <span class="scale-label" id="assess-scale-name"></span>
+        <span class="assess-count" id="assess-count"></span>
+      </div>
+      <div class="progress"><div id="assess-bar" class="progress-fill"></div></div>
+    </div>
+    <div class="question-card">
+      <p class="question-text" id="assess-question"></p>
+      <div class="options" id="assess-options"></div>
+    </div>
+  </section>
+
+  <!-- 量表完成确认页 -->
+  <section id="view-scale-confirm" class="view hidden">
+    <h1 id="scale-confirm-title"></h1>
+    <p class="hint">请检查您的作答。如需修改，点击对应题目即可返回。</p>
+    <div class="answer-list" id="scale-confirm-list"></div>
+    <button id="btn-scale-confirm-next" class="btn-primary">继续</button>
+  </section>
+
+  <!-- 全部完成确认页 -->
+  <section id="view-final-confirm" class="view hidden">
+    <h1>所有题目已完成</h1>
+    <p id="final-confirm-text"></p>
+    <ul class="scale-list" id="final-confirm-list"></ul>
+    <button id="btn-final-submit" class="btn-primary">确认提交</button>
+  </section>
+
+  <!-- 结果页 -->
+  <section id="view-result" class="view hidden">
+    <div class="result-heart" aria-hidden="true">❤</div>
+    <h1 id="result-closing"></h1>
+    <div class="result-encourage" id="result-encouragements"></div>
+    <div class="tips-card">
+      <h2>日常自我关照小贴士</h2>
+      <ul id="result-tips"></ul>
+    </div>
+    <div class="disclaimer" id="result-disclaimer"></div>
+    <p class="contact-hint" id="result-contact"></p>
+    <p class="revoke-entry">
+      <a href="#revoke" id="result-revoke" class="link-btn hidden">我需要撤回我的测评数据</a>
+    </p>
+  </section>
+
+  <!-- 撤回页 -->
+  <section id="view-revoke" class="view hidden">
+    <h1>撤回数据</h1>
+    <div class="consent-text">
+      <p><b>撤回后果：</b>撤回后，您的所有答题数据将被从系统中彻底删除，无法恢复。您使用的邀请码将作废，邀请您的人士将无法查看或找回这些数据。</p>
+      <p>您确定要撤回吗？此操作不可撤销。请输入「确认撤回」四个字以完成撤回：</p>
+    </div>
+    <input id="revoke-input" type="text" maxlength="4" placeholder="确认撤回">
+    <button id="btn-revoke" class="btn-danger" disabled>确认撤回</button>
+    <button class="btn-ghost" data-go="#result">返回</button>
+    <p id="revoke-tip" class="tip-text"></p>
+  </section>
+
+  <!-- 匿名说明弹层 -->
+  <div id="modal-anon" class="modal hidden">
+    <div class="modal-box">
+      <h2>关于匿名自测</h2>
+      <p>匿名自测仅用于您了解平台的使用方式。没有邀请码时，测评结果无法发送给专业人士，也无法获得解读。</p>
+      <p>如需参与正式测评，请联系您的医生、心理老师或家长获取邀请码。</p>
+      <button class="btn-primary" data-close-modal>知道了</button>
+    </div>
+  </div>
+
+  <!-- 超时提示弹层 -->
+  <div id="modal-timeout" class="modal hidden">
+    <div class="modal-box">
+      <h2>您已停留较长时间</h2>
+      <p>需要继续作答吗？您的已作答内容都已安全保存，稍后可使用同一邀请码继续完成测评。</p>
+      <button class="btn-primary" id="btn-timeout-continue">继续作答</button>
+      <button class="btn-ghost" data-go="#result">稍后再说</button>
+    </div>
+  </div>
+
+</main>
+
+<footer class="site-footer">
+  <p>本平台量表来源于《心理量表自评手册》（198X年版）及其他公开学术资源，仅供学习参考使用。如有版权疑虑请联系我们。</p>
+</footer>
+
+<script src="/patient/static/js/api.js"></script>
+<script src="/patient/static/js/app.js"></script>
+</body>
+</html>

@@ -96,6 +96,7 @@ def verify_code():
         "valid": True,
         "has_in_progress_session": has_in_progress,
         "resume_available": resume_available,
+        "consent_given": bool(session and session.consent_given),
         "session_id": session.id if session else None,
     })
 
@@ -165,6 +166,14 @@ def phq4_submit():
     db.session.commit()
 
     if package is None:
+        # 分支七：状态良好，无需深度测评 → 直接完成会话并跳转结果页（文档 3.4）
+        invite = session.invite_code
+        invite_service.mark_completed(session, invite)
+        from ..models import AuditLog
+        db.session.add(AuditLog(action="assessment_submit", target_type="invite_code",
+                                target_id=invite.id,
+                                detail="快筛通过，无深度测评（状态良好分支）"))
+        db.session.commit()
         return ok({
             "need_deep_assessment": False,
             "message": "根据您的快筛结果，本次无需进一步作答",
@@ -191,9 +200,9 @@ def save_response():
 
     scale_id = data.get("scale_id")
     item_number = data.get("item_number")
+    option_index = data.get("option_index")
     score = data.get("score")
-    if not isinstance(scale_id, int) or not isinstance(item_number, int) \
-            or not isinstance(score, int):
+    if not isinstance(scale_id, int) or not isinstance(item_number, int):
         return error(VALIDATION_ERROR, "参数格式错误")
 
     scale = db.session.get(Scale, scale_id)
@@ -206,7 +215,13 @@ def save_response():
         options = json.loads(item.options_json or "[]")
     except ValueError:
         options = []
-    if not validate_answer_value(score, options):
+
+    # 患者端传 option_index（不接触分值）；内部调用方可直接传 score
+    if option_index is not None:
+        if not isinstance(option_index, int) or not 0 <= option_index < len(options):
+            return error(VALIDATION_ERROR, "选项下标非法")
+        score = options[option_index].get("score")
+    if not isinstance(score, int) or not validate_answer_value(score, options):
         return error(VALIDATION_ERROR, "作答值不在该题选项范围内")
 
     row = (ItemResponse.query
@@ -359,6 +374,89 @@ def revoke(session_id):
 
     invite_service.revoke_session(session, invite)
     return ok(message="您的数据已成功撤回并删除，邀请码已作废")
+
+
+@bp.get("/package-detail/<int:session_id>")
+def package_detail(session_id):
+    """深度包完整题目（文档 3.5）。
+
+    注意：返回的选项仅含文字，不含分值——患者端绝不暴露任何计分信息。
+    """
+    session, err = _session_or_error(session_id)
+    if err:
+        return err
+    if not session.consent_given:
+        return error(CONSENT_REQUIRED, "请先阅读并同意知情同意书")
+    if session.push_package_id is None:
+        return error(VALIDATION_ERROR, "本次测评无深度量表")
+
+    package = db.session.get(ScalePackage, session.push_package_id)
+    if package is None or package.status != "active":
+        return error(NOT_FOUND, "测评组合包不存在或已停用")
+
+    scales = []
+    for scale, _ in package.ordered_scales():
+        items = (ScaleItem.query
+                 .filter_by(scale_id=scale.id)
+                 .order_by(ScaleItem.sort_order.asc(), ScaleItem.item_number.asc())
+                 .all())
+        scales.append({
+            "scale_id": scale.id,
+            "abbreviation": scale.abbreviation,
+            "name_zh": scale.name_zh,
+            "item_count": len(items),
+            "estimated_minutes": scale.estimated_minutes,
+            "items": [
+                {
+                    "item_number": it.item_number,
+                    "item_text": it.item_text,
+                    "options": [
+                        {"text": opt.get("text")}
+                        for opt in json.loads(it.options_json or "[]")
+                    ],
+                }
+                for it in items
+            ],
+        })
+    return ok({"package_id": package.id, "name": package.name,
+               "scales": scales})
+
+
+@bp.get("/session-answers/<int:session_id>")
+def session_answers(session_id):
+    """断点续答：返回会话已作答记录的选项下标（文档 3.5）。
+
+    仅返回选项下标而非分值，患者端不接触任何计分信息。
+    """
+    session, err = _session_or_error(session_id)
+    if err:
+        return err
+    if not session.consent_given:
+        return error(CONSENT_REQUIRED, "请先阅读并同意知情同意书")
+
+    by_scale = {}
+    rows = (ItemResponse.query.filter_by(session_id=session.id).all())
+    items_by_scale = {}
+    for r in rows:
+        if r.scale_id not in items_by_scale:
+            item_rows = (ScaleItem.query
+                         .filter_by(scale_id=r.scale_id)
+                         .order_by(ScaleItem.sort_order.asc(), ScaleItem.item_number.asc())
+                         .all())
+            items_by_scale[r.scale_id] = {it.item_number: it for it in item_rows}
+        item = items_by_scale[r.scale_id].get(r.item_number)
+        index = None
+        if item:
+            try:
+                options = json.loads(item.options_json or "[]")
+            except ValueError:
+                options = []
+            for i, opt in enumerate(options):
+                if opt.get("score") == r.raw_score:
+                    index = i
+                    break
+        by_scale.setdefault(str(r.scale_id), {})[r.item_number] = index
+    return ok(by_scale)
 
 
 @bp.get("/session-status/<code>")
