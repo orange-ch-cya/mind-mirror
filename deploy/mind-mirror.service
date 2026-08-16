@@ -1,0 +1,17 @@
+# 心镜平台 systemd 服务（文档 11.3 宕机应对：Restart=always）
+[Unit]
+Description=Mind Mirror Flask Application
+After=network.target
+
+[Service]
+Type=simple
+User=siri
+WorkingDirectory=/home/siri/ZSH/mind-mirror/backend
+Environment=MIND_MIRROR_SECRET_KEY=请替换为随机长密钥
+Environment=ENV=production
+ExecStart=/home/siri/ZSH/mind-mirror/backend/.venv/bin/gunicorn -c /home/siri/ZSH/mind-mirror/deploy/gunicorn.conf.py "app:create_app('production')"
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

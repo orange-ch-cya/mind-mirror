@@ -450,6 +450,9 @@ def main():
 
     app = create_app(env)
     with app.app_context():
+        # 确保表结构存在（生产环境 AUTO_CREATE_TABLES=False 时由种子脚本兜底建表；
+        # 已有表时 create_all 不会重复创建，仍建议生产使用 flask db upgrade 管理迁移）
+        db.create_all()
         seed_admin()
         seed_configs()
         seed_scales()
