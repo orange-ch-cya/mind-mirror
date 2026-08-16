@@ -32,6 +32,7 @@
   const state = {
     code: "",
     sessionId: null,
+    anonymous: false,         // 匿名自测（无邀请码）
     phq4Answers: [],
     sleepFlag: false,
     stressFlag: false,
@@ -60,7 +61,7 @@
   };
   const saveStore = () => {
     sessionStorage.setItem(STORE_KEY, JSON.stringify({
-      code: state.code, sessionId: state.sessionId }));
+      code: state.code, sessionId: state.sessionId, anonymous: state.anonymous }));
   };
   const clearStore = () => sessionStorage.removeItem(STORE_KEY);
 
@@ -85,19 +86,69 @@
     if (saved) {
       try {
         const s = JSON.parse(saved);
-        if (s.code && s.sessionId) {
-          state.code = s.code;
+        if (s.sessionId) {
+          state.code = s.code || "";
           state.sessionId = s.sessionId;
-          $("#input-code").value = s.code;
-          if (confirm("检测到您有未完成的测评，是否继续上次的进度？")) {
-            resumeFlow();
-            return;
+          state.anonymous = !!s.anonymous;
+          if (state.anonymous) {
+            if (confirm("检测到您有未完成的匿名自测，是否继续上次的进度？")) {
+              resumeAnonymous();
+              return;
+            }
+          } else if (s.code) {
+            $("#input-code").value = s.code;
+            if (confirm("检测到您有未完成的测评，是否继续上次的进度？")) {
+              resumeFlow();
+              return;
+            }
           }
           clearStore();
         }
       } catch (e) { /* 忽略损坏的存储 */ }
     }
     show("home");
+  };
+
+  // 匿名自测断点续答
+  const resumeAnonymous = async () => {
+    try {
+      const info = await API.get(`/api/v1/patient/anon-status/${state.sessionId}`);
+      if (!info.exists) {
+        clearStore();
+        show("home");
+        return;
+      }
+      if (info.status === "completed") {
+        clearStore();
+        await loadResult();
+        return;
+      }
+      if (info.status === "revoked") {
+        clearStore();
+        show("home");
+        return;
+      }
+      if (!info.resume_available) {
+        alert("该匿名自测已超时，需要重新开始。");
+        clearStore();
+        show("home");
+        return;
+      }
+      if (info.consent_given) {
+        await startAssessment();
+      } else {
+        showConsent();
+      }
+    } catch (e) {
+      alert(e.message);
+      clearStore();
+      show("home");
+    }
+  };
+
+  const showConsent = () => {
+    $("#anon-consent-note").classList.toggle("hidden", !state.anonymous);
+    show("consent");
   };
 
   const resumeFlow = async () => {
@@ -114,7 +165,7 @@
       if (info.consent_given) {
         await startAssessment();
       } else {
-        show("consent");
+        showConsent();
       }
     } catch (e) {
       alert(e.message);
@@ -151,7 +202,7 @@
       }
       state.sessionId = info.session_id;
       saveStore();
-      show("consent");
+      showConsent();
     } catch (e) {
       $("#code-tip").textContent = e.message;
       $("#code-tip").classList.remove("hidden");
@@ -167,12 +218,26 @@
       $("#more-info").classList.contains("hidden") ? "了解更多" : "收起";
   });
 
-  // 匿名自测说明
+  // ---------- 匿名自测（文档 3.1/3.2：开放自测，同样须经知情同意） ----------
   $("#btn-anon").addEventListener("click", () => {
     $("#modal-anon").classList.remove("hidden");
   });
   document.querySelectorAll("[data-close-modal]").forEach((b) =>
     b.addEventListener("click", () => b.closest(".modal").classList.add("hidden")));
+
+  $("#btn-anon-start").addEventListener("click", async () => {
+    $("#modal-anon").classList.add("hidden");
+    try {
+      const data = await API.post("/api/v1/patient/anonymous-start", {});
+      state.sessionId = data.session_id;
+      state.anonymous = true;
+      state.code = "";
+      saveStore();
+      showConsent();
+    } catch (e) {
+      alert(e.message);
+    }
+  });
 
   // ---------- 知情同意 ----------
   $("#consent-check").addEventListener("change", (e) => {
@@ -181,7 +246,12 @@
 
   $("#btn-consent-start").addEventListener("click", async () => {
     try {
-      await API.post("/api/v1/patient/consent", { code: state.code, consent: true });
+      if (state.anonymous) {
+        await API.post("/api/v1/patient/consent", {
+          session_id: state.sessionId, anonymous: true, consent: true });
+      } else {
+        await API.post("/api/v1/patient/consent", { code: state.code, consent: true });
+      }
       startScreening();
     } catch (e) {
       alert(e.message);
@@ -471,18 +541,28 @@
     show("result");
   };
 
-  // ---------- 撤回 ----------
+  // ---------- 撤回（文档 3.7；匿名自测同样适用） ----------
   $("#revoke-input").addEventListener("input", (e) => {
     $("#btn-revoke").disabled = e.target.value.trim() !== "确认撤回";
   });
 
+  // 进入撤回页时按模式调整告知文案
+  const showRevoke = () => {
+    if (state.anonymous) {
+      $("#revoke-consequence").innerHTML =
+        "<b>撤回后果：</b>撤回后，您的所有匿名自测数据将被从系统中彻底删除，无法恢复。";
+    }
+    show("revoke");
+  };
+
   $("#btn-revoke").addEventListener("click", async () => {
     try {
-      await API.post(`/api/v1/patient/revoke/${state.sessionId}`, {
-        confirm_text: "确认撤回",
-        invite_code: state.code,
-      });
-      renderRevoked("您的数据已成功撤回并删除。邀请码已作废。如需重新测评，请联系邀请您的人士获取新的邀请码。感谢您的参与，祝您一切安好。");
+      const body = { confirm_text: "确认撤回" };
+      if (!state.anonymous) body.invite_code = state.code;
+      await API.post(`/api/v1/patient/revoke/${state.sessionId}`, body);
+      renderRevoked(state.anonymous
+        ? "您的匿名自测数据已成功撤回并删除。感谢您的参与，祝您一切安好。"
+        : "您的数据已成功撤回并删除。邀请码已作废。如需重新测评，请联系邀请您的人士获取新的邀请码。感谢您的参与，祝您一切安好。");
     } catch (e) {
       $("#revoke-tip").textContent = e.message;
     }
@@ -532,7 +612,11 @@
     const id = location.hash.replace("#", "");
     if (["home", "consent", "screening", "intro", "break", "assessment",
          "scale-confirm", "final-confirm", "result", "revoke"].includes(id)) {
-      show(id);
+      if (id === "revoke") {
+        showRevoke();
+      } else {
+        show(id);
+      }
     }
   });
 

@@ -139,6 +139,44 @@ check("11. 状态良好分支", r["code"] == 0 and r["data"]["need_deep_assessme
 _, r = call("GET", f"/api/v1/patient/result/{sid3}")
 check("12. 状态良好直接出结果页", r["code"] == 0 and r["data"]["status"] == "completed")
 
+# ---------- 流程四：匿名自测（文档 3.1/3.2 开放入口，无邀请码） ----------
+_, r = call("POST", "/api/v1/patient/anonymous-start", {})
+check("13. 开启匿名会话", r["code"] == 0 and r["data"]["anonymous"])
+sid4 = r["data"]["session_id"]
+
+_, r = call("POST", "/api/v1/patient/response",
+            {"session_id": sid4, "scale_id": 2, "item_number": 1,
+             "option_index": 0})
+check("14. 未同意禁止作答", r["code"] == 1101)
+
+_, r = call("POST", "/api/v1/patient/consent",
+            {"session_id": sid4, "anonymous": True, "consent": True})
+check("15. 匿名知情同意", r["code"] == 0)
+
+_, r = call("POST", "/api/v1/patient/phq4-submit",
+            {"session_id": sid4, "answers": [3, 1, 0, 0],
+             "sleep_flag": False, "stress_flag": False})
+check("16. 匿名快筛推送", r["code"] == 0 and r["data"]["need_deep_assessment"])
+
+_, r = call("GET", f"/api/v1/patient/package-detail/{sid4}")
+for scale in r["data"]["scales"]:
+    for item in scale["items"]:
+        call("POST", "/api/v1/patient/response",
+             {"session_id": sid4, "scale_id": scale["scale_id"],
+              "item_number": item["item_number"], "option_index": 0})
+
+_, r = call("POST", "/api/v1/patient/submit", {"session_id": sid4})
+check("17. 匿名提交", r["code"] == 0 and r["data"]["completed"])
+
+_, r = call("GET", f"/api/v1/patient/result/{sid4}")
+check("18. 匿名结果页（无分数+匿名文案）", r["code"] == 0
+      and r["data"]["anonymous"] is True
+      and "匿名自测" in r["data"]["contact_hint"]
+      and "总分" not in json.dumps(r["data"], ensure_ascii=False))
+
+_, r = call("POST", f"/api/v1/patient/revoke/{sid4}", {"confirm_text": "确认撤回"})
+check("19. 匿名撤回", r["code"] == 0)
+
 # 还原管理员密码（冒烟过程会临时改密，结束时恢复文档约定账号，避免影响正常登录）
 import os
 import subprocess

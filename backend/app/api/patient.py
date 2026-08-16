@@ -46,6 +46,9 @@ DEFAULT_TIPS = [
 DEFAULT_CONTACT_HINT = ("您的完整测评数据已安全地发送给向您提供邀请码的人士。"
                         "如需了解详细结果和专业解读，请直接联系邀请您参与测评的人士。"
                         "出于对您的保护，平台不会直接向您展示分数和详细报告。")
+DEFAULT_ANON_CONTACT_HINT = ("本次为匿名自测，您的作答数据不会发送给任何专业人士，"
+                             "仅用于本次自测流程。如需获得专业解读，建议联系医生、"
+                             "心理老师或家长获取邀请码后重新测评。")
 # 硬编码免责声明（文档 10.1 第三层：禁止从配置读取）
 PATIENT_DISCLAIMER = [
     "本结果仅反映您近期填写问卷时的心理状态倾向，不代表临床诊断。",
@@ -101,17 +104,51 @@ def verify_code():
     })
 
 
+@bp.post("/anonymous-start")
+def anonymous_start():
+    """开启匿名自测（文档 3.1/3.2：匿名自测入口，同样须经知情同意）。
+
+    创建不绑定邀请码的匿名会话，数据不发送给任何专业人士。
+    """
+    session = AssessmentSession(invite_code_id=None, anonymous=True,
+                                status=SESSION_IN_PROGRESS)
+    db.session.add(session)
+    db.session.commit()
+    return ok({"session_id": session.id,
+               "anonymous": True}, "匿名自测已开启")
+
+
 @bp.post("/consent")
 def consent():
-    """提交知情同意（文档 3.2 / 10.1 第一层）。同意记录作为数据归属追溯凭证。"""
-    data = request.get_json(silent=True) or {}
-    code = normalize_code(data.get("code") or "")
-    agreed = bool(data.get("consent"))
+    """提交知情同意（文档 3.2 / 10.1 第一层）。同意记录作为数据归属追溯凭证。
 
-    if not validate_invite_code(code):
-        return error(INVALID_INVITE_CODE, "邀请码格式不正确")
+    支持两种模式：
+    - 邀请码模式：{code, consent}
+    - 匿名模式：  {session_id, anonymous: true, consent}
+    """
+    data = request.get_json(silent=True) or {}
+    agreed = bool(data.get("consent"))
     if not agreed:
         return error(VALIDATION_ERROR, "请先阅读并同意知情同意书")
+
+    # 匿名模式
+    if data.get("anonymous"):
+        session = db.session.get(AssessmentSession, data.get("session_id"))
+        if session is None or not session.anonymous:
+            return error(SESSION_NOT_FOUND, "匿名测评会话不存在")
+        if session.status in (SESSION_COMPLETED, SESSION_REVOKED):
+            return error(RESUME_CONFLICT, "该匿名测评已完成，无法重复参与")
+        invite_service.mark_consent(session, ua_hash=_ua_hash(), ip_hash=_ip_hash())
+        invite_service.set_resume_deadline(session)
+        return ok({
+            "session_id": session.id,
+            "consent_at": session.consent_at.isoformat(),
+        }, "感谢您的信任，现在开始测评")
+
+    # 邀请码模式
+    code = normalize_code(data.get("code") or "")
+    if not validate_invite_code(code):
+        return error(INVALID_INVITE_CODE, "邀请码格式不正确")
 
     invite, err_code, message = invite_service.validate_invite_code_status(code)
     if invite is None:
@@ -170,9 +207,12 @@ def phq4_submit():
         invite = session.invite_code
         invite_service.mark_completed(session, invite)
         from ..models import AuditLog
-        db.session.add(AuditLog(action="assessment_submit", target_type="invite_code",
-                                target_id=invite.id,
-                                detail="快筛通过，无深度测评（状态良好分支）"))
+        db.session.add(AuditLog(
+            action="assessment_submit",
+            target_type="invite_code" if invite else "assessment_session",
+            target_id=invite.id if invite else session.id,
+            detail="快筛通过，无深度测评（状态良好分支）"
+            + ("（匿名自测）" if session.anonymous else "")))
         db.session.commit()
         return ok({
             "need_deep_assessment": False,
@@ -302,9 +342,12 @@ def submit():
     invite_service.mark_completed(session, invite)
 
     from ..models import AuditLog
-    db.session.add(AuditLog(action="assessment_submit", target_type="invite_code",
-                            target_id=invite.id,
-                            detail=f"测评提交完成（{len(ordered)} 个量表）"))
+    db.session.add(AuditLog(
+        action="assessment_submit",
+        target_type="invite_code" if invite else "assessment_session",
+        target_id=invite.id if invite else session.id,
+        detail=f"测评提交完成（{len(ordered)} 个量表）"
+        + ("（匿名自测）" if session.anonymous else "")))
     db.session.commit()
 
     return ok({
@@ -339,11 +382,15 @@ def result(session_id):
 
     return ok({
         "status": "completed",
+        "anonymous": session.anonymous,
         "closing_message": get_config("patient_closing_message", DEFAULT_CLOSING),
         "encouragements": get_config("patient_encouragements", DEFAULT_ENCOURAGEMENTS),
         "tips": get_config("patient_tips", DEFAULT_TIPS),
         "disclaimer": PATIENT_DISCLAIMER,
-        "contact_hint": get_config("patient_contact_hint", DEFAULT_CONTACT_HINT),
+        "contact_hint": get_config(
+            "patient_anon_contact_hint" if session.anonymous
+            else "patient_contact_hint",
+            DEFAULT_ANON_CONTACT_HINT if session.anonymous else DEFAULT_CONTACT_HINT),
         "revoke_available": revoke_available,
         "revoke_deadline": deadline.isoformat() if deadline else None,
     })
@@ -457,6 +504,44 @@ def session_answers(session_id):
                     break
         by_scale.setdefault(str(r.scale_id), {})[r.item_number] = index
     return ok(by_scale)
+
+
+@bp.get("/anon-status/<int:session_id>")
+def anon_status(session_id):
+    """匿名会话状态查询（断点续答，文档 3.5）。"""
+    session = db.session.get(AssessmentSession, session_id)
+    if session is None or not session.anonymous:
+        return ok({"exists": False})
+
+    resume_available = bool(
+        session.status == SESSION_IN_PROGRESS
+        and session.resume_deadline and session.resume_deadline > datetime.utcnow())
+
+    answered = {}
+    if session.status == SESSION_IN_PROGRESS and session.push_package_id:
+        package = db.session.get(ScalePackage, session.push_package_id)
+        if package:
+            for scale, _ in package.ordered_scales():
+                answered[scale.id] = {
+                    "abbreviation": scale.abbreviation,
+                    "name_zh": scale.name_zh,
+                    "answered": (ItemResponse.query
+                                 .filter_by(session_id=session.id,
+                                            scale_id=scale.id).count()),
+                    "total": scale.items.count(),
+                }
+
+    return ok({
+        "exists": True,
+        "anonymous": True,
+        "status": session.status,
+        "consent_given": session.consent_given,
+        "phq4_submitted": session.phq4_total is not None,
+        "resume_available": resume_available,
+        "resume_deadline": (session.resume_deadline.isoformat()
+                            if session.resume_deadline else None),
+        "answered": answered,
+    })
 
 
 @bp.get("/session-status/<code>")

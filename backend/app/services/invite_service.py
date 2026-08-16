@@ -81,8 +81,9 @@ def mark_completed(session, invite):
     from datetime import datetime
     session.status = SESSION_COMPLETED
     session.completed_at = datetime.utcnow()
-    invite.status = STATUS_USED
-    invite.used_at = datetime.utcnow()
+    if invite is not None:  # 匿名自测会话无邀请码
+        invite.status = STATUS_USED
+        invite.used_at = datetime.utcnow()
     db.session.commit()
 
 
@@ -95,36 +96,44 @@ def mark_viewed(invite):
 
 
 def revoke_session(session, invite):
-    """24 小时撤回：物理删除作答记录与会话（事务保证一致性），邀请码置已撤回。"""
+    """24 小时撤回：物理删除作答记录与会话（事务保证一致性）。
+
+    匿名自测会话 invite 为 None：仅删除会话与作答，无邀请码状态可更新。
+    """
     from ..models import AuditLog
 
     # 物理删除作答记录
     session.responses.delete()
     db.session.delete(session)
-    invite.status = STATUS_REVOKED
-    invite.revoked_at = datetime.utcnow()
-    db.session.add(AuditLog(action="patient_revoke", target_type="invite_code",
-                            target_id=invite.id,
-                            detail="患者端撤回数据（匿名化记录，不含数据副本）"))
+    if invite is not None:
+        invite.status = STATUS_REVOKED
+        invite.revoked_at = datetime.utcnow()
+        target = ("invite_code", invite.id)
+    else:
+        target = ("assessment_session", session.id)
+    db.session.add(AuditLog(action="patient_revoke", target_type=target[0],
+                            target_id=target[1],
+                            detail="匿名自测撤回" if invite is None
+                            else "患者端撤回数据（匿名化记录，不含数据副本）"))
     db.session.commit()
 
 
 def can_revoke(session, invite):
-    """撤回可行性校验（文档 3.7）：
+    """撤回可行性校验（文档 3.7；匿名自测会话同样适用）：
     1. 提交后 24 小时内（revoke_hours 可配置）；
-    2. 邀请码状态为已填/已阅。
+    2. 邀请码状态为已填/已阅（匿名会话无邀请码，仅校验完成状态）。
     返回 (ok, error_code, message)。
     """
     from ..utils.errors import ALREADY_REVOKED, NOT_REVOKABLE, REVOKE_TOO_LATE
     from .config_service import get_config_int
 
-    if invite.status == STATUS_REVOKED:
+    if invite is not None and invite.status == STATUS_REVOKED:
         return False, ALREADY_REVOKED, "该数据已被撤回"
     if session.status == SESSION_REVOKED:
         return False, ALREADY_REVOKED, "该数据已被撤回"
     if session.status != SESSION_COMPLETED or not session.completed_at:
         return False, NOT_REVOKABLE, "该测评尚未完成提交，无需撤回"
-    if invite.status not in (STATUS_USED, STATUS_VIEWED):
+    if invite is not None and invite.status not in (STATUS_USED, STATUS_VIEWED):
         return False, NOT_REVOKABLE, "当前状态不支持撤回操作"
 
     revoke_hours = get_config_int("revoke_hours", 24)

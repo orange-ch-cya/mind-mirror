@@ -39,7 +39,7 @@
     <p id="code-tip" class="tip-text hidden"></p>
 
     <p class="anon-entry">
-      <button class="link-btn" id="btn-anon">我没有邀请码，想先了解一下</button>
+      <button class="link-btn" id="btn-anon">没有邀请码？可以匿名自测</button>
     </p>
   </section>
 
@@ -47,6 +47,9 @@
   <section id="view-consent" class="view hidden">
     <h1>知情同意书</h1>
     <div class="consent-text">
+      <p class="hidden" id="anon-consent-note" style="color:#B06A1F;font-weight:600">
+        本次为匿名自测：您的作答数据不会发送给任何专业人士，仅用于本次自测流程；您仍可在提交后 24 小时内撤回并彻底删除数据。
+      </p>
       <p>在开始测评之前，请您仔细阅读以下内容：</p>
       <ol>
         <li><b>平台性质：</b>本平台为非医疗工具。测试结果不代表临床诊断，不能替代专业医生的面诊评估。</li>
@@ -149,7 +152,7 @@
   <section id="view-revoke" class="view hidden">
     <h1>撤回数据</h1>
     <div class="consent-text">
-      <p><b>撤回后果：</b>撤回后，您的所有答题数据将被从系统中彻底删除，无法恢复。您使用的邀请码将作废，邀请您的人士将无法查看或找回这些数据。</p>
+      <p id="revoke-consequence"><b>撤回后果：</b>撤回后，您的所有答题数据将被从系统中彻底删除，无法恢复。您使用的邀请码将作废，邀请您的人士将无法查看或找回这些数据。</p>
       <p>您确定要撤回吗？此操作不可撤销。请输入「确认撤回」四个字以完成撤回：</p>
     </div>
     <input id="revoke-input" type="text" maxlength="4" placeholder="确认撤回">
@@ -158,13 +161,15 @@
     <p id="revoke-tip" class="tip-text"></p>
   </section>
 
-  <!-- 匿名说明弹层 -->
+  <!-- 匿名自测说明弹层 -->
   <div id="modal-anon" class="modal hidden">
     <div class="modal-box">
-      <h2>匿名自测暂未开放</h2>
-      <p>本平台的测评必须由医生或家长通过邀请码发起，匿名自测暂未开放。匿名作答无法将结果发送给专业人士，也无法获得解读。</p>
-      <p>如果您希望了解自己的心理状态，请联系您的医生、心理老师或家长获取邀请码；如有持续困扰，建议前往正规医疗机构咨询。</p>
-      <button class="btn-primary" data-close-modal>知道了</button>
+      <h2>匿名自测</h2>
+      <p>无需邀请码即可完成一次完整的心理状态自测：<b>快速筛查 → 详细问卷 → 温和的结果反馈</b>。</p>
+      <p>请知悉：匿名自测的作答数据<b>不会发送给任何专业人士</b>，仅用于本次自测流程，提交后 24 小时内可撤回并彻底删除。</p>
+      <p>如需获得专业解读，请联系您的医生、心理老师或家长获取邀请码后重新测评。</p>
+      <button class="btn-primary" id="btn-anon-start">开始匿名自测</button>
+      <button class="btn-ghost" data-close-modal>再想想</button>
     </div>
   </div>
 

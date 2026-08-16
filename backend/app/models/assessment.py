@@ -21,8 +21,10 @@ class AssessmentSession(db.Model):
     __tablename__ = "assessment_sessions"
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    # 匿名自测会话 invite_code_id 为 NULL（anonymous=True），数据不发送给任何专业人士
     invite_code_id = db.Column(db.Integer, db.ForeignKey("invite_codes.id"),
-                               unique=True, nullable=False, index=True)
+                               unique=True, nullable=True, index=True)
+    anonymous = db.Column(db.Boolean, nullable=False, default=False, index=True)
     status = db.Column(db.String(20), nullable=False, default=SESSION_IN_PROGRESS, index=True)
     push_package_id = db.Column(db.Integer, db.ForeignKey("scale_packages.id"))
 

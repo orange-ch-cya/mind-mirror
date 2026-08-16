@@ -181,3 +181,65 @@ def test_full_patient_doctor_flow(app, client):
     with app.app_context():
         assert db.session.get(AssessmentSession, session_id) is None
         assert db.session.get(InviteCode, report["invite_code_id"]).status == "revoked"
+
+
+def test_anonymous_flow(app, client):
+    """匿名自测完整流程（文档 3.1/3.2 开放匿名入口，同样经知情同意）。"""
+    _seed_flow(app)
+
+    # 1. 开启匿名会话（无邀请码）
+    resp = client.post("/api/v1/patient/anonymous-start", json={})
+    body = resp.get_json()
+    assert body["code"] == 0
+    sid = body["data"]["session_id"]
+    assert body["data"]["anonymous"] is True
+
+    # 2. 未同意前禁止作答
+    resp = client.post("/api/v1/patient/response",
+                       json={"session_id": sid, "scale_id": 2,
+                             "item_number": 1, "option_index": 0})
+    assert resp.get_json()["code"] == 1101  # CONSENT_REQUIRED
+
+    # 3. 匿名知情同意
+    resp = client.post("/api/v1/patient/consent",
+                       json={"session_id": sid, "anonymous": True, "consent": True})
+    assert resp.get_json()["code"] == 0
+
+    # 4. 快筛（焦虑分支）→ GAD-7
+    resp = client.post("/api/v1/patient/phq4-submit",
+                       json={"session_id": sid, "answers": [3, 1, 0, 0],
+                             "sleep_flag": False, "stress_flag": False})
+    body = resp.get_json()
+    assert body["code"] == 0
+    gad7_id = body["data"]["package"]["scales"][0]["scale_id"]
+
+    # 5. 逐题作答 + 提交
+    for num in range(1, 8):
+        resp = client.post("/api/v1/patient/response",
+                           json={"session_id": sid, "scale_id": gad7_id,
+                                 "item_number": num, "option_index": 0})
+        assert resp.get_json()["code"] == 0
+    resp = client.post("/api/v1/patient/submit", json={"session_id": sid})
+    assert resp.get_json()["code"] == 0
+
+    # 6. 结果页：匿名文案、无邀请码、可撤回
+    resp = client.get(f"/api/v1/patient/result/{sid}")
+    body = resp.get_json()
+    assert body["code"] == 0
+    assert body["data"]["anonymous"] is True
+    assert "匿名自测" in body["data"]["contact_hint"]
+    assert body["data"]["revoke_available"] is True
+    blob = json.dumps(body["data"], ensure_ascii=False)
+    assert "总分" not in blob and "GAD-7" not in blob
+
+    # 7. 会话状态（匿名断点续答用）
+    resp = client.get(f"/api/v1/patient/anon-status/{sid}")
+    body = resp.get_json()
+    assert body["code"] == 0 and body["data"]["status"] == "completed"
+
+    # 8. 匿名撤回（无需邀请码）
+    resp = client.post(f"/api/v1/patient/revoke/{sid}",
+                       json={"confirm_text": "确认撤回"})
+    assert resp.get_json()["code"] == 0
+    with app.app_context():
+        assert db.session.get(AssessmentSession, sid) is None
