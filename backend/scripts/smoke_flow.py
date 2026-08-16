@@ -165,6 +165,15 @@ code, r = call("POST", "/api/v1/patient/revoke/" + str(session_id),
                {"confirm_text": "确认撤回", "invite_code": invite_code})
 check("重复撤回被拒绝", r["code"] == 1202)
 
+# 还原管理员密码（冒烟过程会临时改密，结束时恢复文档约定账号，避免影响正常登录）
+import os
+import subprocess
+
+_BACKEND = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+_reset = subprocess.run([sys.executable, "scripts/reset_admin.py"], cwd=_BACKEND,
+                        capture_output=True, text=True)
+print((_reset.stdout or _reset.stderr).strip() or "[warn] 管理员密码还原失败")
+
 print("\n" + "=" * 40)
 print(f"冒烟结果：{sum(PASS)}/{len(PASS)} 通过")
 sys.exit(0 if all(PASS) else 1)

@@ -58,7 +58,10 @@ cd backend
 .venv/bin/python scripts/smoke_patient_ui.py         # 患者端契约（13 项）
 ```
 
-> 冒烟脚本会修改管理员/医生初始密码，请在全新种子库上运行（`rm -f mind_mirror_dev.db && python seed.py`）。
+> 冒烟脚本需要以全新种子库运行（`rm -f mind_mirror_dev.db && python seed.py`）。
+> 脚本会在结束时**自动把管理员密码还原为初始值**；若因异常中断导致密码被改，
+> 执行 `python scripts/reset_admin.py` 一键恢复（开发库），
+> 或 `python scripts/reset_admin.py --env production`（生产库）。
 
 ## 已实现功能（对照需求文档）
 

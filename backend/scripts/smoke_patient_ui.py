@@ -139,6 +139,15 @@ check("11. 状态良好分支", r["code"] == 0 and r["data"]["need_deep_assessme
 _, r = call("GET", f"/api/v1/patient/result/{sid3}")
 check("12. 状态良好直接出结果页", r["code"] == 0 and r["data"]["status"] == "completed")
 
+# 还原管理员密码（冒烟过程会临时改密，结束时恢复文档约定账号，避免影响正常登录）
+import os
+import subprocess
+
+_BACKEND = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+_reset = subprocess.run([sys.executable, "scripts/reset_admin.py"], cwd=_BACKEND,
+                        capture_output=True, text=True)
+print((_reset.stdout or _reset.stderr).strip() or "[warn] 管理员密码还原失败")
+
 print("\n" + "=" * 40)
 print(f"患者端契约验证：{sum(PASS)}/{len(PASS)} 通过")
 sys.exit(0 if all(PASS) else 1)
