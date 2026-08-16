@@ -6,8 +6,9 @@
 - 业务逻辑集中在 services 层，API 层只做参数解析与权限校验。
 """
 import logging
+import os
 
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
 
 from .config import config_map
 from .extensions import cors, db, migrate
@@ -22,11 +23,18 @@ def create_app(config_name="default"):
     migrate.init_app(app, db)
     cors.init_app(app, resources={r"/api/*": {"origins": "*"}})
 
-    # 日志
+    # 日志：控制台 + 文件（backend/logs/app.log），便于排查线上问题
+    log_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "logs")
+    os.makedirs(log_dir, exist_ok=True)
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s %(levelname)s [%(module)s] %(message)s",
     )
+    file_handler = logging.FileHandler(os.path.join(log_dir, "app.log"),
+                                       encoding="utf-8")
+    file_handler.setFormatter(logging.Formatter(
+        "%(asctime)s %(levelname)s [%(module)s] %(message)s"))
+    logging.getLogger().addHandler(file_handler)
 
     # 注册蓝图
     from .api import register_blueprints
@@ -41,7 +49,17 @@ def create_app(config_name="default"):
 
     @app.errorhandler(404)
     def handle_404(e):
-        return jsonify({"code": 5002, "message": "请求的资源不存在", "data": None}), 200
+        # API 路径返回统一 JSON 错误；浏览器路径返回友好页面
+        if request.path.startswith("/api/"):
+            return jsonify({"code": 5002, "message": "请求的资源不存在", "data": None}), 200
+        app.logger.info("404 for browser path: %s", request.path)
+        return ("<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'>"
+                "<title>页面不存在</title><style>body{font-family:sans-serif;"
+                "text-align:center;padding:80px 20px;color:#555}"
+                "a{color:#3E6B8E}</style></head><body>"
+                "<h1>页面不存在</h1><p>您访问的地址有误或已失效。</p>"
+                "<p><a href='/'>返回患者端首页</a> · "
+                "<a href='/doctor'>进入工作台</a></p></body></html>"), 404
 
     # 自动建表（开发便捷；生产使用 flask db upgrade）
     if app.config.get("AUTO_CREATE_TABLES"):
