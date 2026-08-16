@@ -404,6 +404,7 @@
     }
     state.itemIndex = i;
     renderAssessmentItem();
+    show("assessment");   // 关键：进入作答视图（此前缺失导致点击"开始答题"无反应）
   };
 
   const renderAssessmentItem = () => {
