@@ -1,0 +1,11 @@
+# 心镜平台后端依赖（Python 3.10+，兼容 3.14）
+Flask>=3.0
+Flask-SQLAlchemy>=3.1
+Flask-Migrate>=4.0
+Flask-Cors>=4.0
+PyJWT>=2.8
+python-dotenv>=1.0
+gunicorn>=21.2
+openpyxl>=3.1
+reportlab>=4.0
+pytest>=8.0
