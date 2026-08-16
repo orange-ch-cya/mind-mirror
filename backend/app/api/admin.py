@@ -410,18 +410,28 @@ def update_rule(rule_id):
     if rule is None:
         return error(NOT_FOUND, "规则不存在")
     data = request.get_json(silent=True) or {}
+
+    # 部分更新：未提供的字段沿用原值（如仅切换 status）
+    merged = {
+        "name": data.get("name", rule.name),
+        "condition_json": data.get("condition_json", rule.condition_json),
+        "output_label_doctor": data.get("output_label_doctor",
+                                        rule.output_label_doctor),
+        "output_label_parent": data.get("output_label_parent",
+                                        rule.output_label_parent),
+    }
     try:
-        name, condition_json, doctor_label = _validate_referral_rule(data)
+        name, condition_json, doctor_label = _validate_referral_rule(merged)
     except ValueError as e:
         return error(VALIDATION_ERROR, str(e))
-    hits = contains_disallowed(doctor_label + (data.get("output_label_parent") or ""))
+    hits = contains_disallowed(doctor_label + (merged["output_label_parent"] or ""))
     if hits:
         return error(VALIDATION_ERROR, f"标签文本包含禁用表述：{hits}")
 
     rule.name = name
     rule.condition_json = condition_json
     rule.output_label_doctor = doctor_label
-    rule.output_label_parent = data.get("output_label_parent") or doctor_label
+    rule.output_label_parent = merged["output_label_parent"] or doctor_label
     for field in ("priority", "output_style", "output_tags", "status"):
         if field in data:
             setattr(rule, field, data[field])

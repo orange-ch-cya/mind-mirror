@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>心镜 · 专业工作台</title>
+<link rel="stylesheet" href="/doctor/static/css/style.css">
+</head>
+<body>
+
+<!-- 登录页 -->
+<section id="view-login" class="login-wrap">
+  <form class="login-card" id="login-form">
+    <div class="login-brand">
+      <span class="brand-mark">心</span>
+      <h1>心镜 · 专业工作台</h1>
+      <p>医生 / 家长 / 管理员</p>
+    </div>
+    <label>用户名<input id="login-username" autocomplete="username" required></label>
+    <label>密码<input id="login-password" type="password" autocomplete="current-password" required></label>
+    <p id="login-error" class="form-error"></p>
+    <button class="btn-primary" type="submit">登 录</button>
+    <p class="login-tip">账号由平台管理员创建。忘记密码请联系管理员重置。</p>
+  </form>
+</section>
+
+<!-- 强制修改密码 -->
+<section id="view-force-pwd" class="login-wrap hidden">
+  <form class="login-card" id="force-pwd-form">
+    <h2>请设置新密码</h2>
+    <p class="login-tip">首次登录须修改初始密码。新密码长度不少于 8 位，且需同时包含字母和数字。</p>
+    <label>新密码<input id="force-new" type="password" required></label>
+    <label>确认新密码<input id="force-new2" type="password" required></label>
+    <p id="force-error" class="form-error"></p>
+    <button class="btn-primary" type="submit">保存并进入系统</button>
+  </form>
+</section>
+
+<!-- 工作台 -->
+<section id="view-app" class="hidden">
+  <aside class="sidebar">
+    <div class="side-brand">心镜 · 工作台</div>
+    <nav id="side-nav"></nav>
+    <div class="side-user">
+      <div id="side-user-name"></div>
+      <button id="btn-logout">退出登录</button>
+    </div>
+  </aside>
+  <main class="content">
+    <header class="content-head">
+      <h2 id="page-title"></h2>
+      <div id="page-actions"></div>
+    </header>
+    <div id="page-body"></div>
+  </main>
+</section>
+
+<!-- 通用弹层 -->
+<div id="modal" class="modal hidden">
+  <div class="modal-box" id="modal-box"></div>
+</div>
+
+<script src="/doctor/static/js/api.js"></script>
+<script src="/doctor/static/js/app.js"></script>
+</body>
+</html>
