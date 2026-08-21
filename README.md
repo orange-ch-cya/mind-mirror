@@ -3,7 +3,16 @@
 > 免登录、免注册的心理健康自测工具。患者通过邀请码完成测评，数据定向推送给医生或家长，
 > 由专业人士在线下解读。平台不做诊断，只承担「数据采集—数据传递—数据呈现」。
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Python](https://img.shields.io/badge/Python-3.10%2B-blue)](backend/requirements.txt)
+[![Flask](https://img.shields.io/badge/Framework-Flask-lightgrey)](backend/app)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
+
 核心设计理念：**简约可拓展 · 以患者为中心 · 医生/家长看详细**（详见 `docs/`）。
+
+> ⚠️ **重要声明**：本平台为**非医疗工具**，测试结果不代表临床诊断，不能替代专业医生面诊。
+> 仓库内量表条目文本的权利归属见 [NOTICE.md](NOTICE.md)，本项目的 MIT 许可证**不转移
+> 任何量表版权**；商用或对外分发量表内容前请完成版权合规流程。
 
 ## 目录结构
 
@@ -100,3 +109,11 @@ sudo certbot --nginx -d YOUR_DOMAIN
 
 本平台为非医疗工具，测试结果不代表临床诊断。平台所用量表部分来源于
 《心理量表自评手册》（198X年版）及其他公开学术资源，仅供学习参考使用；正式商用前需完成版权合规流程（文档第十一章）。
+
+## 开源协议与版权
+
+- 代码与文档：**MIT License**（见 [LICENSE](LICENSE)）；
+- 量表条目文本：权利归属见 [NOTICE.md](NOTICE.md)，不随 MIT 授权转移；
+- 参与贡献请阅读 [CONTRIBUTING.md](CONTRIBUTING.md)；
+- 安全漏洞报告见 [SECURITY.md](SECURITY.md)；
+- 社区行为准则见 [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)。
