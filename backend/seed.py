@@ -16,7 +16,7 @@
 import json
 import sys
 
-from werkzeug.security import generate_password_hash
+from app.utils.passwords import generate_password_hash
 
 from app import create_app
 from app.extensions import db

@@ -50,6 +50,15 @@ class ProductionConfig(BaseConfig):
     )
 
 
+class CloudflareConfig(ProductionConfig):
+    """使用 Worker D1 binding 的部署配置。"""
+
+    SECRET_KEY = ""
+    SQLALCHEMY_DATABASE_URI = "cloudflare_d1://"
+    from .cloudflare_runtime import engine_options
+    SQLALCHEMY_ENGINE_OPTIONS = engine_options()
+
+
 class TestingConfig(BaseConfig):
     TESTING = True
     SQLALCHEMY_DATABASE_URI = "sqlite:///:memory:"
@@ -59,6 +68,7 @@ class TestingConfig(BaseConfig):
 config_map = {
     "development": DevelopmentConfig,
     "production": ProductionConfig,
+    "cloudflare": CloudflareConfig,
     "testing": TestingConfig,
     "default": DevelopmentConfig,
 }

@@ -32,6 +32,7 @@
   const state = {
     code: "",
     sessionId: null,
+    sessionToken: "",
     anonymous: false,         // 匿名自测（无邀请码）
     phq4Answers: [],
     sleepFlag: false,
@@ -61,7 +62,8 @@
   };
   const saveStore = () => {
     sessionStorage.setItem(STORE_KEY, JSON.stringify({
-      code: state.code, sessionId: state.sessionId, anonymous: state.anonymous }));
+      code: state.code, sessionId: state.sessionId,
+      sessionToken: state.sessionToken, anonymous: state.anonymous }));
   };
   const clearStore = () => sessionStorage.removeItem(STORE_KEY);
 
@@ -89,6 +91,7 @@
         if (s.sessionId) {
           state.code = s.code || "";
           state.sessionId = s.sessionId;
+          state.sessionToken = s.sessionToken || "";
           state.anonymous = !!s.anonymous;
           if (state.anonymous) {
             if (confirm("检测到您有未完成的匿名自测，是否继续上次的进度？")) {
@@ -161,6 +164,7 @@
         return;
       }
       state.sessionId = info.session_id;
+      state.sessionToken = info.session_token || "";
       saveStore();
       if (info.consent_given) {
         await startAssessment();
@@ -189,6 +193,7 @@
       if (info.has_in_progress_session && info.resume_available) {
         if (confirm("检测到您有未完成的测评，是否继续上次的进度？")) {
           state.sessionId = info.session_id;
+          state.sessionToken = info.session_token || "";
           saveStore();
           if (info.consent_given) {
             await startAssessment();
@@ -201,6 +206,7 @@
         clearStore();
       }
       state.sessionId = info.session_id;
+      state.sessionToken = info.session_token || "";
       saveStore();
       showConsent();
     } catch (e) {
@@ -230,6 +236,7 @@
     try {
       const data = await API.post("/api/v1/patient/anonymous-start", {});
       state.sessionId = data.session_id;
+      state.sessionToken = data.session_token || "";
       state.anonymous = true;
       state.code = "";
       saveStore();
@@ -247,11 +254,15 @@
   $("#btn-consent-start").addEventListener("click", async () => {
     try {
       if (state.anonymous) {
-        await API.post("/api/v1/patient/consent", {
+        const data = await API.post("/api/v1/patient/consent", {
           session_id: state.sessionId, anonymous: true, consent: true });
+        state.sessionToken = data.session_token || "";
       } else {
-        await API.post("/api/v1/patient/consent", { code: state.code, consent: true });
+        const data = await API.post("/api/v1/patient/consent", { code: state.code, consent: true });
+        state.sessionId = data.session_id;
+        state.sessionToken = data.session_token || "";
       }
+      saveStore();
       startScreening();
     } catch (e) {
       alert(e.message);

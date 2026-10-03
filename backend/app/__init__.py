@@ -7,6 +7,7 @@
 """
 import logging
 import os
+import sys
 
 from flask import Flask, jsonify, request
 
@@ -23,18 +24,19 @@ def create_app(config_name="default"):
     migrate.init_app(app, db)
     cors.init_app(app, resources={r"/api/*": {"origins": "*"}})
 
-    # 日志：控制台 + 文件（backend/logs/app.log），便于排查线上问题
-    log_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "logs")
-    os.makedirs(log_dir, exist_ok=True)
+    # Workers 的文件系统不可持久写入，日志只写标准输出。
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s %(levelname)s [%(module)s] %(message)s",
     )
-    file_handler = logging.FileHandler(os.path.join(log_dir, "app.log"),
-                                       encoding="utf-8")
-    file_handler.setFormatter(logging.Formatter(
-        "%(asctime)s %(levelname)s [%(module)s] %(message)s"))
-    logging.getLogger().addHandler(file_handler)
+    if sys.platform != "emscripten":
+        log_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "logs")
+        os.makedirs(log_dir, exist_ok=True)
+        file_handler = logging.FileHandler(os.path.join(log_dir, "app.log"),
+                                           encoding="utf-8")
+        file_handler.setFormatter(logging.Formatter(
+            "%(asctime)s %(levelname)s [%(module)s] %(message)s"))
+        logging.getLogger().addHandler(file_handler)
 
     # 注册蓝图
     from .api import register_blueprints

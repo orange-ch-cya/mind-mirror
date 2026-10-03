@@ -5,6 +5,7 @@
 """
 import hashlib
 import logging
+import sys
 from datetime import datetime, timedelta
 
 from ..extensions import db
@@ -101,6 +102,33 @@ def revoke_session(session, invite):
     匿名自测会话 invite 为 None：仅删除会话与作答，无邀请码状态可更新。
     """
     from ..models import AuditLog
+
+    if sys.platform == "emscripten":
+        from ..cloudflare_runtime import atomic_batch
+
+        revoked_at = datetime.utcnow().isoformat(sep=" ")
+        target_type = "invite_code" if invite is not None else "assessment_session"
+        target_id = invite.id if invite is not None else session.id
+        detail = ("患者端撤回数据（匿名化记录，不含数据副本）"
+                  if invite is not None else "匿名自测撤回")
+        statements = [
+            ("DELETE FROM item_responses WHERE session_id = ?", (session.id,)),
+            ("DELETE FROM assessment_sessions WHERE id = ?", (session.id,)),
+        ]
+        if invite is not None:
+            statements.append((
+                "UPDATE invite_codes SET status = ?, revoked_at = ? WHERE id = ?",
+                (STATUS_REVOKED, revoked_at, invite.id),
+            ))
+        statements.append((
+            "INSERT INTO audit_logs "
+            "(action, target_type, target_id, detail, created_at) "
+            "VALUES (?, ?, ?, ?, ?)",
+            ("patient_revoke", target_type, target_id, detail, revoked_at),
+        ))
+        atomic_batch(statements)
+        db.session.remove()
+        return
 
     # 物理删除作答记录
     session.responses.delete()

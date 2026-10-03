@@ -183,6 +183,9 @@ def report_detail(session_id):
 @bp.get("/reports/<int:session_id>/export/pdf")
 @professional_required
 def export_pdf(session_id):
+    import sys
+    if sys.platform == "emscripten":
+        return error(VALIDATION_ERROR, "Cloudflare 免费版请在报告页使用打印并保存 PDF")
     session = db.session.get(AssessmentSession, session_id)
     err = _check_report_access(session)
     if err:
@@ -206,6 +209,9 @@ def export_pdf(session_id):
 @bp.get("/reports/<int:session_id>/export/excel")
 @professional_required
 def export_excel(session_id):
+    import sys
+    if sys.platform == "emscripten":
+        return error(VALIDATION_ERROR, "Cloudflare 免费版请在报告页导出 CSV")
     session = db.session.get(AssessmentSession, session_id)
     err = _check_report_access(session)
     if err:
@@ -225,6 +231,25 @@ def export_excel(session_id):
         io.BytesIO(xlsx_bytes), mimetype=(
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
         as_attachment=True, download_name=f"心镜数据-{invite.code}.xlsx")
+
+
+@bp.post("/reports/<int:session_id>/export-event")
+@professional_required
+def export_event(session_id):
+    """浏览器端生成 PDF/CSV 时仍记录导出操作。"""
+    session = db.session.get(AssessmentSession, session_id)
+    err = _check_report_access(session)
+    if err:
+        return err
+    if session.status != SESSION_COMPLETED:
+        return error(NOT_FOUND, "该测评尚未完成，无法导出")
+    kind = (request.get_json(silent=True) or {}).get("kind")
+    if kind not in ("pdf", "csv"):
+        return error(VALIDATION_ERROR, "导出类型无效")
+    db.session.add(AuditLog(action=f"doctor_export_{kind}", user_id=g.current_user.id,
+                            target_type="assessment_session", target_id=session.id))
+    db.session.commit()
+    return ok({"recorded": True})
 
 
 # ---------- 导出实现 ----------

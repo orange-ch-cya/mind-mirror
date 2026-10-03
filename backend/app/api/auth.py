@@ -8,7 +8,7 @@ import secrets
 from datetime import datetime, timedelta
 
 from flask import Blueprint, g, request
-from werkzeug.security import check_password_hash, generate_password_hash
+from ..utils.passwords import check_password_hash, generate_password_hash
 
 from ..extensions import db
 from ..middleware.auth import create_token, token_required

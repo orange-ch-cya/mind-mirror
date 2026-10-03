@@ -1,0 +1,17 @@
+[project]
+name = "mind-mirror-cloudflare"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+  "flask>=3,<4",
+  "flask-sqlalchemy>=3.1,<4",
+  "flask-migrate>=4,<5",
+  "flask-cors>=4,<7",
+  "PyJWT>=2.8,<3",
+  "python-dotenv>=1,<2",
+  "openpyxl>=3.1,<4",
+  "reportlab>=4,<6",
+  "sqlalchemy-cloudflare-d1==0.4.1"
+]
+[dependency-groups]
+dev = ["workers-py>=1.17,<2", "workers-runtime-sdk>=1.9,<2"]

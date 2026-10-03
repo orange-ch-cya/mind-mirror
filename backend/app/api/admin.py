@@ -10,7 +10,7 @@ import secrets
 import string
 
 from flask import Blueprint, g, request
-from werkzeug.security import generate_password_hash
+from ..utils.passwords import generate_password_hash
 
 from ..extensions import db
 from ..middleware.auth import admin_required

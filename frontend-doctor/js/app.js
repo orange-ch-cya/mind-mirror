@@ -371,8 +371,8 @@
         <p class="report-meta">${esc(rep.copyright)}</p>
       </div>
       <div style="display:flex;gap:10px">
-        <button class="btn-primary" style="width:auto" data-export="pdf">导出 PDF</button>
-        <button class="btn-ghost" style="width:auto" data-export="excel">导出 Excel</button>
+        <button class="btn-primary" style="width:auto" data-export="pdf">打印 / 保存 PDF</button>
+        <button class="btn-ghost" style="width:auto" data-export="csv">导出 CSV（Excel 可打开）</button>
         <button class="btn-ghost" style="width:auto" onclick="location.hash='#/reports'">返回列表</button>
       </div>`;
 
@@ -380,15 +380,56 @@
       $("#staged-labels").classList.remove("hidden");
       $("#btn-staged").classList.add("hidden");
     });
+    const csvCell = (value) => {
+      let text = String(value ?? "");
+      if (/^\s*[=+@-]/.test(text)) text = "'" + text;
+      return `"${text.replace(/"/g, '""')}"`;
+    };
     $$("[data-export]").forEach((b) => b.addEventListener("click", async () => {
       b.disabled = true;
       try {
-        const blob = await Api.get(
-          `/api/v1/doctor/reports/${sessionId}/export/${b.dataset.export}`, true);
-        const a = document.createElement("a");
-        a.href = URL.createObjectURL(blob);
-        a.download = `心镜报告-${ov.invite_code}.${b.dataset.export === "pdf" ? "pdf" : "xlsx"}`;
-        a.click();
+        if (b.dataset.export === "pdf") {
+          const win = window.open("", "_blank");
+          if (!win) throw new Error("请允许浏览器打开打印窗口");
+          try {
+            await Api.post(`/api/v1/doctor/reports/${sessionId}/export-event`, { kind: "pdf" });
+            const blocks = rep.scales.map((s) => `
+              <section><h2>${esc(s.name_zh)}（${esc(s.abbreviation || "")}）</h2>
+              <p>总分 ${s.score.total_score} / ${s.score.max_score}</p>
+              <table><thead><tr><th>题号</th><th>题目</th><th>患者选择</th><th>得分</th></tr></thead>
+              <tbody>${s.items.map((it) => `<tr><td>${it.item_number}</td><td>${esc(it.item_text)}</td>
+                <td>${esc(it.chosen_text || "—")}</td><td>${it.final_score ?? it.raw_score}</td></tr>`).join("")}</tbody></table></section>`).join("");
+            win.document.write(`<!doctype html><html lang="zh-CN"><meta charset="utf-8">
+              <title>心镜报告-${esc(ov.invite_code)}</title><style>
+              body{font:14px/1.55 sans-serif;color:#222;margin:24px auto;max-width:850px}
+              h1{font-size:24px}h2{font-size:18px;margin-top:28px}section{break-inside:avoid-page}
+              table{width:100%;border-collapse:collapse;margin:12px 0}th,td{border:1px solid #bbb;padding:6px;text-align:left}
+              th{background:#eef2f7}@page{size:A4;margin:16mm}</style>
+              <h1>心理状态自测报告</h1><p>邀请码：${esc(ov.invite_code)}<br>
+              测评完成时间：${esc(fmt(ov.completed_at))}<br>组合包：${esc(ov.package_name || "—")}</p>
+              ${blocks}<h2>综合分科参考</h2><p>${rep.referral_labels.map((l) => esc(l.label)).join("；") || "无"}</p>
+              <p>${esc(rep.disclaimer)}</p><p>${esc(rep.copyright)}</p></html>`);
+            win.document.close();
+            win.focus();
+            win.print();
+          } catch (e) { win.close(); throw e; }
+        } else {
+          await Api.post(`/api/v1/doctor/reports/${sessionId}/export-event`, { kind: "csv" });
+          const rows = [["邀请码", ov.invite_code], ["完成时间", ov.completed_at],
+            ["组合包", ov.package_name], [],
+            ["量表", "题号", "题目", "维度", "患者选择", "原始分", "最终分", "反向计分"]];
+          rep.scales.forEach((s) => s.items.forEach((it) => rows.push([
+            s.name_zh, it.item_number, it.item_text, it.dimension || "", it.chosen_text || "",
+            it.raw_score, it.final_score, it.reversed ? "是" : "否"])));
+          const blob = new Blob(["\uFEFF" + rows.map((row) => row.map(csvCell).join(",")).join("\r\n")],
+            { type: "text/csv;charset=utf-8" });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = `心镜数据-${ov.invite_code}.csv`;
+          a.click();
+          setTimeout(() => URL.revokeObjectURL(url), 1000);
+        }
       } catch (e) { alert(e.message); }
       b.disabled = false;
     }));

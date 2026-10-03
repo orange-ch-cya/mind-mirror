@@ -6,8 +6,10 @@
 - 作答单题暂存、提交后计分、24 小时内可撤回（物理删除）。
 """
 import json
+import sys
 from datetime import datetime, timedelta
 
+import jwt
 from flask import Blueprint, request
 
 from ..extensions import db
@@ -54,7 +56,7 @@ PATIENT_DISCLAIMER = [
     "本结果仅反映您近期填写问卷时的心理状态倾向，不代表临床诊断。",
     "心理健康是动态变化的，本次结果仅代表您作答期间的自我感受。",
     "如您近期持续感到困扰或不适，强烈建议前往正规医院精神科/临床心理科就诊咨询。",
-    "全国心理援助热线：400-161-9995（24小时）。注：热线号码请在正式上线前再次确认有效性。",
+    "如需心理支持，在中国大陆可拨打全国统一心理援助热线 12356；遇到紧急危险请立即联系当地急救服务。",
 ]
 
 
@@ -70,7 +72,27 @@ def _session_or_error(session_id):
     session = db.session.get(AssessmentSession, session_id)
     if session is None:
         return None, error(SESSION_NOT_FOUND, "测评会话不存在")
+    if sys.platform == "emscripten" and not _has_session_token(session.id):
+        return None, error(INVALID_INVITE_CODE, "测评凭证无效，请重新输入邀请码或开始匿名自测")
     return session, None
+
+
+def _session_token(session_id):
+    from flask import current_app
+    return jwt.encode({"sid": session_id, "exp": datetime.utcnow() + timedelta(hours=48)},
+                      current_app.config["SECRET_KEY"], algorithm="HS256")
+
+
+def _has_session_token(session_id):
+    from flask import current_app
+    token = request.headers.get("X-Session-Token", "")
+    if not token:
+        return False
+    try:
+        claims = jwt.decode(token, current_app.config["SECRET_KEY"], algorithms=["HS256"])
+        return claims.get("sid") == session_id
+    except jwt.PyJWTError:
+        return False
 
 
 @bp.post("/verify-code")
@@ -101,6 +123,7 @@ def verify_code():
         "resume_available": resume_available,
         "consent_given": bool(session and session.consent_given),
         "session_id": session.id if session else None,
+        "session_token": _session_token(session.id) if session else None,
     })
 
 
@@ -114,7 +137,7 @@ def anonymous_start():
                                 status=SESSION_IN_PROGRESS)
     db.session.add(session)
     db.session.commit()
-    return ok({"session_id": session.id,
+    return ok({"session_id": session.id, "session_token": _session_token(session.id),
                "anonymous": True}, "匿名自测已开启")
 
 
@@ -136,12 +159,15 @@ def consent():
         session = db.session.get(AssessmentSession, data.get("session_id"))
         if session is None or not session.anonymous:
             return error(SESSION_NOT_FOUND, "匿名测评会话不存在")
+        if sys.platform == "emscripten" and not _has_session_token(session.id):
+            return error(INVALID_INVITE_CODE, "测评凭证无效，请重新开始匿名自测")
         if session.status in (SESSION_COMPLETED, SESSION_REVOKED):
             return error(RESUME_CONFLICT, "该匿名测评已完成，无法重复参与")
         invite_service.mark_consent(session, ua_hash=_ua_hash(), ip_hash=_ip_hash())
         invite_service.set_resume_deadline(session)
         return ok({
             "session_id": session.id,
+            "session_token": _session_token(session.id),
             "consent_at": session.consent_at.isoformat(),
         }, "感谢您的信任，现在开始测评")
 
@@ -163,6 +189,7 @@ def consent():
 
     return ok({
         "session_id": session.id,
+        "session_token": _session_token(session.id),
         "consent_at": session.consent_at.isoformat(),
     }, "感谢您的信任，现在开始测评")
 
@@ -192,6 +219,39 @@ def phq4_submit():
     stress_flag = bool(data.get("stress_flag"))
 
     package, detail = decide_package(answers, sleep_flag, stress_flag)
+
+    if sys.platform == "emscripten" and package is None:
+        # 无深度量表分支同时写快筛、完成状态、邀请码和审计，避免半完成会话。
+        from ..cloudflare_runtime import atomic_batch
+
+        completed_at = datetime.utcnow().isoformat(sep=" ")
+        invite = session.invite_code
+        statements = [(
+            "UPDATE assessment_sessions SET phq4_answers_json = ?, phq4_anxiety = ?, "
+            "phq4_depression = ?, phq4_total = ?, sleep_flag = ?, stress_flag = ?, "
+            "push_package_id = NULL, status = ?, completed_at = ? WHERE id = ?",
+            (json.dumps(answers), detail["phq4_anxiety"], detail["phq4_depression"],
+             detail["phq4_total"], int(sleep_flag), int(stress_flag),
+             SESSION_COMPLETED, completed_at, session.id),
+        )]
+        if invite is not None:
+            statements.append((
+                "UPDATE invite_codes SET status = ?, used_at = ? WHERE id = ?",
+                ("used", completed_at, invite.id),
+            ))
+        statements.append((
+            "INSERT INTO audit_logs "
+            "(action, target_type, target_id, detail, created_at) "
+            "VALUES (?, ?, ?, ?, ?)",
+            ("assessment_submit", "invite_code" if invite else "assessment_session",
+             invite.id if invite else session.id,
+             "快筛通过，无深度测评（状态良好分支）"
+             + ("（匿名自测）" if session.anonymous else ""), completed_at),
+        ))
+        atomic_batch(statements)
+        db.session.remove()
+        return ok({"need_deep_assessment": False,
+                   "message": "根据您的快筛结果，本次无需进一步作答"})
 
     session.phq4_answers_json = json.dumps(answers)
     session.phq4_anxiety = detail["phq4_anxiety"]
@@ -330,6 +390,45 @@ def submit():
             scored[scale.id] = score_scale(scale, raw_maps.get(scale.id, {}))
     except (MissingAnswerError, InvalidAnswerError) as e:
         return error(INVALID_ANSWERS, f"计分校验未通过：{e}")
+
+    if sys.platform == "emscripten":
+        # D1 方言的 commit 不提供多语句事务；提交状态和计分必须一起落库。
+        from ..cloudflare_runtime import atomic_batch
+
+        completed_at = datetime.utcnow().isoformat(sep=" ")
+        statements = []
+        for scale_id, result in scored.items():
+            by_number = {s["item_number"]: s for s in result["item_scores"]}
+            for response in responses:
+                if response.scale_id == scale_id and response.item_number in by_number:
+                    item_score = by_number[response.item_number]
+                    statements.append((
+                        "UPDATE item_responses SET final_score = ?, reversed = ? WHERE id = ?",
+                        (item_score["final_score"], int(item_score["reversed"]), response.id),
+                    ))
+        statements.append((
+            "UPDATE assessment_sessions SET status = ?, completed_at = ? WHERE id = ?",
+            (SESSION_COMPLETED, completed_at, session.id),
+        ))
+        invite = session.invite_code
+        if invite is not None:
+            statements.append((
+                "UPDATE invite_codes SET status = ?, used_at = ? WHERE id = ?",
+                ("used", completed_at, invite.id),
+            ))
+        statements.append((
+            "INSERT INTO audit_logs "
+            "(action, target_type, target_id, detail, created_at) "
+            "VALUES (?, ?, ?, ?, ?)",
+            ("assessment_submit", "invite_code" if invite else "assessment_session",
+             invite.id if invite else session.id,
+             f"测评提交完成（{len(ordered)} 个量表）"
+             + ("（匿名自测）" if session.anonymous else ""), completed_at),
+        ))
+        atomic_batch(statements)
+        db.session.remove()
+        return ok({"session_id": session.id, "completed": True,
+                   "scales_count": len(ordered)}, "作答已提交，感谢您的认真参与")
 
     for scale_id, result in scored.items():
         by_number = {s["item_number"]: s for s in result["item_scores"]}
@@ -512,6 +611,8 @@ def anon_status(session_id):
     session = db.session.get(AssessmentSession, session_id)
     if session is None or not session.anonymous:
         return ok({"exists": False})
+    if sys.platform == "emscripten" and not _has_session_token(session.id):
+        return error(INVALID_INVITE_CODE, "测评凭证无效，请重新开始匿名自测")
 
     resume_available = bool(
         session.status == SESSION_IN_PROGRESS
