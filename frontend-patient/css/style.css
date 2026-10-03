@@ -278,3 +278,8 @@ body { background: radial-gradient(circle at 10% 10%, #E9F0E5 0, transparent 35%
   .view, .breath { animation: none; }
   .progress-fill { transition: none; }
 }
+
+.step-nav { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 18px; }
+.step-back { padding: 10px 14px; color: var(--primary); background: transparent; border: 1px solid var(--border); border-radius: 10px; font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; }
+.step-back:hover:not(:disabled) { background: var(--primary-soft); }
+.step-back:disabled { color: #AAB7AD; cursor: not-allowed; }

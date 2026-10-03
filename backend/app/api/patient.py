@@ -122,6 +122,7 @@ def verify_code():
         "has_in_progress_session": has_in_progress,
         "resume_available": resume_available,
         "consent_given": bool(session and session.consent_given),
+        "phq4_submitted": bool(session and session.phq4_total is not None),
         "session_id": session.id if session else None,
         "session_token": _session_token(session.id) if session else None,
     })

@@ -1,7 +1,7 @@
 /* 心镜 · 患者端流程控制（文档第三章）
    视图流：首页 → 知情同意 → 快筛(含补充题) → 过渡 → 深度包说明 → 休息页 →
    逐题作答 → 量表确认 → 最终确认 → 结果页（可撤回）。
-   断点续答：sessionStorage 保存 {code, sessionId}，刷新后提示继续。 */
+   断点续答：快筛草稿保存在当前标签页，深度问卷逐题写入服务端。 */
 
 (() => {
   "use strict";
@@ -43,6 +43,8 @@
     itemIndex: 0,             // 当前题目在量表 items 中的下标
     editing: false,
     revokeAvailable: false,
+    screenDraft: null,
+    pendingResponse: null,
   };
 
   // ---------- 工具 ----------
@@ -63,7 +65,8 @@
   const saveStore = () => {
     sessionStorage.setItem(STORE_KEY, JSON.stringify({
       code: state.code, sessionId: state.sessionId,
-      sessionToken: state.sessionToken, anonymous: state.anonymous }));
+      sessionToken: state.sessionToken, anonymous: state.anonymous,
+      screenDraft: state.screenDraft, pendingResponse: state.pendingResponse }));
   };
   const clearStore = () => sessionStorage.removeItem(STORE_KEY);
 
@@ -93,6 +96,8 @@
           state.sessionId = s.sessionId;
           state.sessionToken = s.sessionToken || "";
           state.anonymous = !!s.anonymous;
+          state.screenDraft = s.screenDraft || null;
+          state.pendingResponse = s.pendingResponse || null;
           if (state.anonymous) {
             if (confirm("检测到您有未完成的匿名自测，是否继续上次的进度？")) {
               resumeAnonymous();
@@ -122,7 +127,6 @@
         return;
       }
       if (info.status === "completed") {
-        clearStore();
         await loadResult();
         return;
       }
@@ -138,13 +142,13 @@
         return;
       }
       if (info.consent_given) {
-        await startAssessment();
+        if (info.phq4_submitted) await startAssessment();
+        else resumeScreening();
       } else {
         showConsent();
       }
     } catch (e) {
       alert(e.message);
-      clearStore();
       show("home");
     }
   };
@@ -156,6 +160,13 @@
 
   const resumeFlow = async () => {
     try {
+      try {
+        const result = await API.get(`/api/v1/patient/result/${state.sessionId}`);
+        if (result.status === "completed") {
+          await loadResult();
+          return;
+        }
+      } catch (_) { /* 旧凭证可能失效，仍可用邀请码重新验证 */ }
       const info = await API.post("/api/v1/patient/verify-code", { code: state.code });
       if (!info.resume_available) {
         alert("该测评已超时，需要重新开始。");
@@ -167,13 +178,13 @@
       state.sessionToken = info.session_token || "";
       saveStore();
       if (info.consent_given) {
-        await startAssessment();
+        if (info.phq4_submitted) await startAssessment();
+        else resumeScreening();
       } else {
         showConsent();
       }
     } catch (e) {
       alert(e.message);
-      clearStore();
       show("home");
     }
   };
@@ -196,7 +207,8 @@
           state.sessionToken = info.session_token || "";
           saveStore();
           if (info.consent_given) {
-            await startAssessment();
+            if (info.phq4_submitted) await startAssessment();
+            else resumeScreening();
           } else {
             show("consent");
           }
@@ -280,14 +292,38 @@
   // ---------- 快速筛查 ----------
   const SCREEN_TOTAL = PHQ4.length + 2; // 4 题 + 睡眠/压力补充题
   let screenStep = 0;                   // 0..5
-  let screenFlag = false;               // 是否已进入补充题
+  let screenAnswers = [];
+  let screenBusy = false;
+
+  const saveScreenDraft = () => {
+    state.screenDraft = { step: screenStep, answers: screenAnswers.slice() };
+    saveStore();
+  };
 
   const startScreening = () => {
     screenStep = 0;
-    screenFlag = false;
+    screenAnswers = [];
     state.phq4Answers = [];
     state.sleepFlag = false;
     state.stressFlag = false;
+    saveScreenDraft();
+    show("screening");
+    renderScreeningStep();
+  };
+
+  const resumeScreening = () => {
+    const draft = state.screenDraft;
+    screenAnswers = Array.isArray(draft?.answers) ? draft.answers.slice(0, SCREEN_TOTAL) : [];
+    screenStep = Number.isInteger(draft?.step)
+      ? Math.min(Math.max(draft.step, 0), screenAnswers.length, SCREEN_TOTAL) : 0;
+    if (screenStep === SCREEN_TOTAL && screenAnswers.length === SCREEN_TOTAL) {
+      state.phq4Answers = screenAnswers.slice(0, PHQ4.length);
+      state.sleepFlag = screenAnswers[4] >= 2;
+      state.stressFlag = screenAnswers[5] === 1;
+      show("transition");
+      setTimeout(submitPhq4, 500);
+      return;
+    }
     show("screening");
     renderScreeningStep();
   };
@@ -295,35 +331,53 @@
   const renderScreeningStep = () => {
     if (screenStep < PHQ4.length) {
       $("#screen-question").textContent = PHQ4[screenStep].text;
-      renderOptions("#screen-options", PHQ4_OPTIONS, onScreeningPick);
+      renderOptions("#screen-options", PHQ4_OPTIONS, onScreeningPick, true, screenAnswers[screenStep]);
     } else if (screenStep === PHQ4.length) {
       $("#screen-question").textContent = SLEEP_Q.text;
-      renderOptions("#screen-options", PHQ4_OPTIONS, onScreeningPick);
+      renderOptions("#screen-options", PHQ4_OPTIONS, onScreeningPick, true, screenAnswers[screenStep]);
     } else {
       $("#screen-question").textContent = STRESS_Q.text;
-      renderOptions("#screen-options", STRESS_OPTIONS, onScreeningPick);
+      renderOptions("#screen-options", STRESS_OPTIONS, onScreeningPick, true, screenAnswers[screenStep]);
     }
     $("#screen-no").textContent = String(screenStep + 1);
     $("#screen-total").textContent = String(SCREEN_TOTAL);
     $("#screen-bar").style.width = `${((screenStep + 1) / SCREEN_TOTAL) * 100}%`;
+    $("#btn-screen-back").disabled = screenStep === 0 || screenBusy;
+    $("#btn-screen-next").classList.toggle("hidden", screenAnswers[screenStep] === undefined);
   };
 
   const onScreeningPick = (opt) => {
-    if (screenStep < PHQ4.length) {
-      state.phq4Answers.push(opt.score);
-    } else if (screenStep === PHQ4.length) {
-      state.sleepFlag = opt.score >= 2;   // 一半以上天数/几乎每天 → 触发
-    } else {
-      state.stressFlag = opt.score === 1; // 肯定回答 → 触发
-    }
+    if (screenBusy) return;
+    screenBusy = true;
+    screenAnswers[screenStep] = opt.score;
+    state.phq4Answers = screenAnswers.slice(0, PHQ4.length);
+    state.sleepFlag = screenAnswers[4] >= 2;
+    state.stressFlag = screenAnswers[5] === 1;
     screenStep += 1;
+    saveScreenDraft();
+    $("#btn-screen-back").disabled = true;
     if (screenStep >= SCREEN_TOTAL) {
       setTimeout(() => show("transition"), 320);
       setTimeout(submitPhq4, 2600);       // 过渡动画约 2-3 秒（文档 3.4）
     } else {
-      setTimeout(renderScreeningStep, 300); // 300ms 确认延迟后自动推进（文档 3.3）
+      setTimeout(() => {
+        screenBusy = false;
+        renderScreeningStep();
+      }, 300); // 300ms 确认延迟后自动推进（文档 3.3）
     }
   };
+
+  $("#btn-screen-back").addEventListener("click", () => {
+    if (screenBusy || screenStep === 0) return;
+    screenStep -= 1;
+    saveScreenDraft();
+    renderScreeningStep();
+  });
+  $("#btn-screen-next").addEventListener("click", () => {
+    if (!screenBusy && screenAnswers[screenStep] !== undefined) {
+      onScreeningPick({ score: screenAnswers[screenStep] });
+    }
+  });
 
   const submitPhq4 = async () => {
     try {
@@ -333,6 +387,8 @@
         sleep_flag: state.sleepFlag,
         stress_flag: state.stressFlag,
       });
+      state.screenDraft = null;
+      saveStore();
       if (result.need_deep_assessment) {
         state.package = await API.get(
           `/api/v1/patient/package-detail/${state.sessionId}`);
@@ -342,8 +398,19 @@
         await loadResult();
       }
     } catch (e) {
+      try {
+        const info = state.anonymous
+          ? await API.get(`/api/v1/patient/anon-status/${state.sessionId}`)
+          : await API.get(`/api/v1/patient/session-status/${state.code}`);
+        if (info.status === "completed") { await loadResult(); return; }
+        if (info.phq4_submitted) { await startAssessment(); return; }
+      } catch (_) { /* 保留本地草稿供重试 */ }
       alert(e.message);
-      show("home");
+      screenBusy = false;
+      screenStep = SCREEN_TOTAL - 1;
+      saveScreenDraft();
+      renderScreeningStep();
+      show("screening");
     }
   };
 
@@ -364,6 +431,12 @@
     if (!state.package) {
       state.package = await API.get(
         `/api/v1/patient/package-detail/${state.sessionId}`);
+    }
+    // 刷新恰好中断单题请求时，先重放该题；后端按同一会话和题号覆盖，避免丢答。
+    if (state.pendingResponse) {
+      await API.post("/api/v1/patient/response", state.pendingResponse);
+      state.pendingResponse = null;
+      saveStore();
     }
     // 恢复已作答
     const saved = await API.get(`/api/v1/patient/session-answers/${state.sessionId}`);
@@ -425,7 +498,10 @@
     $("#assess-count").textContent =
       `第 ${state.itemIndex + 1} 题 / 共 ${scale.item_count} 题`;
     $("#assess-question").textContent = item.item_text;
-    renderOptions("#assess-options", item.options, onAssessPick, false);
+    const savedChoice = state.answers[scale.scale_id]?.[item.item_number];
+    renderOptions("#assess-options", item.options, onAssessPick, false, savedChoice);
+    $("#btn-assess-back").disabled = assessmentBusy || (state.scaleIndex === 0 && state.itemIndex === 0);
+    $("#btn-assess-next").classList.toggle("hidden", savedChoice === undefined || savedChoice === null);
     // 进度条：整个组合包总进度
     const totalItems = state.package.scales.reduce((s, x) => s + x.item_count, 0);
     let answered = 0;
@@ -438,35 +514,75 @@
     $("#assess-bar").style.width = `${(cur / totalItems) * 100}%`;
   };
 
-  const onAssessPick = async (opt, btn) => {
+  let assessmentBusy = false;
+  const onAssessPick = async (opt) => {
+    if (assessmentBusy) return;
+    assessmentBusy = true;
     // 防连点
     const optionsBox = $("#assess-options");
     optionsBox.querySelectorAll("button").forEach((b) => (b.disabled = true));
+    $("#btn-assess-back").disabled = true;
 
     const scale = state.package.scales[state.scaleIndex];
     const item = scale.items[state.itemIndex];
-    state.answers[scale.scale_id] = state.answers[scale.scale_id] || {};
-    // 记录选项下标（患者端不接触分值）
-    state.answers[scale.scale_id][item.item_number] = opt.idx;
-
-    // 异步暂存（文档 3.5：每题作答即时保存；传 option_index 由后端映射分值）
-    API.post("/api/v1/patient/response", {
+    state.pendingResponse = {
       session_id: state.sessionId,
       scale_id: scale.scale_id,
       item_number: item.item_number,
       option_index: opt.idx,
-    }).catch(() => { /* 暂存失败由下一次作答/提交兜底 */ });
+    };
+    saveStore();
+    try {
+      await API.post("/api/v1/patient/response", state.pendingResponse);
+      state.answers[scale.scale_id] = state.answers[scale.scale_id] || {};
+      state.answers[scale.scale_id][item.item_number] = opt.idx;
+      state.pendingResponse = null;
+      saveStore();
+    } catch (e) {
+      alert(`答案保存失败：${e.message}。请检查网络后重试。`);
+      assessmentBusy = false;
+      renderAssessmentItem();
+      return;
+    }
 
-    setTimeout(() => {
-      if (state.itemIndex + 1 >= scale.item_count) {
-        renderScaleConfirm();
-        show("scale-confirm");
-      } else {
-        state.itemIndex += 1;
-        renderAssessmentItem();
-      }
-    }, 300); // 300ms 确认延迟（文档 3.3）
+    setTimeout(advanceAssessment, 300); // 300ms 确认延迟（文档 3.3）
   };
+
+  const advanceAssessment = () => {
+    assessmentBusy = false;
+    const scale = state.package.scales[state.scaleIndex];
+    if (state.itemIndex + 1 >= scale.item_count) {
+      renderScaleConfirm();
+      show("scale-confirm");
+    } else {
+      state.itemIndex += 1;
+      renderAssessmentItem();
+    }
+  };
+
+  $("#btn-assess-next").addEventListener("click", () => {
+    const scale = state.package.scales[state.scaleIndex];
+    const item = scale.items[state.itemIndex];
+    if (assessmentBusy || state.answers[scale.scale_id]?.[item.item_number] == null) return;
+    assessmentBusy = true;
+    $("#btn-assess-back").disabled = true;
+    $("#btn-assess-next").disabled = true;
+    setTimeout(() => {
+      $("#btn-assess-next").disabled = false;
+      advanceAssessment();
+    }, 300);
+  });
+
+  $("#btn-assess-back").addEventListener("click", () => {
+    if (assessmentBusy || (state.scaleIndex === 0 && state.itemIndex === 0)) return;
+    if (state.itemIndex > 0) {
+      state.itemIndex -= 1;
+    } else {
+      state.scaleIndex -= 1;
+      state.itemIndex = state.package.scales[state.scaleIndex].items.length - 1;
+    }
+    renderAssessmentItem();
+  });
 
   const renderScaleConfirm = () => {
     const scale = state.package.scales[state.scaleIndex];
@@ -589,12 +705,13 @@
   };
 
   // ---------- 通用选项渲染 ----------
-  const renderOptions = (containerSel, options, onPick, showSub = true) => {
+  const renderOptions = (containerSel, options, onPick, showSub = true, selectedIdx = null) => {
     const box = $(containerSel);
     box.innerHTML = "";
     options.forEach((opt, idx) => {
       const btn = document.createElement("button");
       btn.className = "option-btn";
+      if (idx === selectedIdx) btn.classList.add("selected");
       btn.innerHTML = showSub && opt.sub
         ? `${opt.text}<small>${opt.sub}</small>`
         : opt.text;
