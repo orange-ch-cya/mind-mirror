@@ -211,3 +211,70 @@ input:focus { border-color: var(--primary); }
 @media (min-width: 700px) {
   .container { max-width: 620px; }
 }
+
+/* 2026 界面更新：保留测评流程，统一首页与问卷的视觉语言。 */
+:root {
+  --bg: #F6F7F2;
+  --primary: #315F50;
+  --primary-soft: #E7EFE8;
+  --accent: #B88759;
+  --text: #263A32;
+  --text-muted: #6F7E73;
+  --border: #E0E7DC;
+  --radius: 22px;
+  --shadow: 0 18px 45px rgba(37, 70, 52, 0.07);
+}
+body { background: radial-gradient(circle at 10% 10%, #E9F0E5 0, transparent 35%), var(--bg); }
+.site-header { max-width: 1120px; margin: auto; padding: 26px 28px; display: flex; align-items: center; justify-content: space-between; text-align: left; }
+.brand { justify-content: flex-start; }
+.brand-mark { width: 40px; height: 40px; font-size: 19px; box-shadow: none; background: var(--primary); }
+.brand-name { font-size: 22px; letter-spacing: 3px; }
+.workspace-link { color: var(--primary); font-size: 13px; font-weight: 600; text-decoration: none; padding: 8px 13px; border: 1px solid #C7D8CB; border-radius: 100px; }
+.workspace-link:hover { background: var(--primary-soft); }
+.container { max-width: 680px; padding: 24px 24px 72px; }
+.container:has(#view-home:not(.hidden)) { max-width: 1120px; padding-top: 46px; }
+#view-home { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(340px, 0.9fr); align-items: center; gap: clamp(28px, 6vw, 94px); }
+.intro-card { background: transparent; border: 0; box-shadow: none; padding: 10px 0 10px 18px; }
+.welcome-art { width: 170px; margin: 0 0 18px -16px; }
+.welcome-art svg { width: 100%; display: block; }
+.eyebrow { display: inline-block; color: #648775; font-size: 12px; font-weight: 700; letter-spacing: .16em; }
+.welcome-title { font-size: clamp(36px, 4.6vw, 62px); letter-spacing: -.06em; line-height: 1.25; font-weight: 700; margin: 20px 0 24px; }
+.welcome-title span { color: var(--primary); }
+.intro-card .welcome-description { color: #617469; font-size: 17px; line-height: 1.9; margin-bottom: 28px; }
+.welcome-values { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 18px; }
+.welcome-values span { color: #537362; background: #E8F0E6; border: 1px solid #DBE7D9; border-radius: 100px; padding: 5px 12px; font-size: 12px; }
+.intro-card .link-btn { text-decoration: none; font-weight: 600; }
+#more-info { margin-top: 12px; padding: 16px; background: #FFFDF8; border-radius: 14px; border: 1px solid var(--border); }
+.start-card { padding: clamp(26px, 4vw, 44px); background: #FFF; border: 1px solid #EDF0E9; border-radius: 28px; box-shadow: 0 24px 70px rgba(37,70,52,.12); }
+.start-card h2 { margin: 10px 0 10px; font-size: clamp(24px, 2.5vw, 32px); letter-spacing: -.04em; }
+.start-description { color: var(--text-muted); font-size: 14px; line-height: 1.85; }
+.invite-label { display: block; margin-top: 29px; color: #41594B; font-size: 13px; font-weight: 700; }
+.invite-box { display: flex; flex-direction: column; gap: 12px; margin-top: 8px; }
+.invite-box input { width: 100%; min-height: 56px; text-align: left; font-size: 16px; letter-spacing: .12em; background: #F8FAF6; border-color: #D9E4D9; }
+.invite-box .btn-primary { width: 100%; min-height: 54px; border-radius: 13px; }
+.start-note { padding-top: 22px; border-top: 1px solid var(--border); margin-top: 26px; color: #87968B; font-size: 12px; line-height: 1.8; }
+.anon-entry .link-btn { text-decoration: none; font-weight: 600; }
+.btn-primary { background: var(--primary); box-shadow: 0 8px 18px rgba(49,95,80,.16); }
+.btn-primary:hover:not(:disabled) { background: #244E40; }
+.btn-primary:disabled { box-shadow: none; }
+.question-card, .consent-text, .dialog-card, .tips-card { padding: clamp(22px, 5vw, 34px); border-radius: 22px; }
+.option-btn { background: #FFF; border-color: #DFE7DE; border-radius: 13px; }
+.option-btn:hover { border-color: #8AAE99; background: #F8FBF7; }
+.option-btn.selected { background: #E8F1E8; }
+.progress { background: #DFE9DD; }
+.progress-fill { background: linear-gradient(90deg, #9CC7A8, var(--primary)); }
+:focus-visible { outline: 3px solid #A7C9A8; outline-offset: 3px; }
+@media (max-width: 760px) {
+  .site-header { padding: 18px 20px; }
+  .container:has(#view-home:not(.hidden)) { padding: 20px 20px 56px; }
+  #view-home { grid-template-columns: 1fr; gap: 30px; }
+  .intro-card { padding: 0; }
+  .welcome-art { width: 116px; margin-bottom: 3px; }
+  .welcome-title { margin: 14px 0; }
+  .intro-card .welcome-description { font-size: 15px; margin-bottom: 18px; }
+  .start-card { padding: 24px; border-radius: 22px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .view, .breath { animation: none; }
+  .progress-fill { transition: none; }
+}

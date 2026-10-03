@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta name="theme-color" content="#F7F3EC">
+<meta name="theme-color" content="#F6F7F2">
 <link rel="icon" href="data:,">
 <title>心镜 · 心理健康自测工具</title>
 <link rel="stylesheet" href="/patient/static/css/style.css">
@@ -15,7 +15,7 @@
     <span class="brand-mark" aria-hidden="true">心</span>
     <span class="brand-name">心镜</span>
   </div>
-  <p class="brand-slogan">了解近期的心理状态，从一个简单的自我觉察开始。</p>
+  <a class="workspace-link" href="/doctor">专业工作台 <span aria-hidden="true">↗</span></a>
 </header>
 
 <main class="container">
@@ -23,7 +23,11 @@
   <!-- 首页 -->
   <section id="view-home" class="view">
     <div class="intro-card">
-      <p>本平台提供标准化的心理状态自我评估工具。您将在专业人士的邀请下完成一份或多份问卷，您填写的内容将安全地传递给邀请您的人士，由他们在适当的时候与您沟通。</p>
+      <div class="welcome-art" aria-hidden="true"><svg viewBox="0 0 200 100" fill="none"><circle cx="102" cy="46" r="34" fill="#DCE6CC"/><path d="M22 82C52 29 132 21 178 78M37 90C65 48 127 43 161 87M53 96C79 70 118 65 145 94" stroke="#719686" stroke-width="1.5"/><circle cx="163" cy="29" r="5" fill="#C79B66"/></svg></div>
+      <span class="eyebrow">给自己一点时间</span>
+      <h1 class="welcome-title">慢一点，<br>听见<span>内心的声音。</span></h1>
+      <p class="welcome-description">从一次简单的自我觉察开始，<br>温柔地了解近期的心理状态。</p>
+      <div class="welcome-values"><span>无需注册</span><span>自愿参与</span><span>支持数据撤回</span></div>
       <button class="link-btn" id="btn-more-info">了解更多</button>
       <div id="more-info" class="hidden">
         <p><b>数据去向：</b>您的答题数据仅发送给向您提供邀请码的人士（可能是医生、心理咨询师、学校老师或家长），平台运营方不查看、不使用您的个人数据。</p>
@@ -32,16 +36,23 @@
       </div>
     </div>
 
+    <div class="start-card">
+    <span class="eyebrow">一小步，开始了解自己</span>
+    <h2>开启你的心镜时刻</h2>
+    <p class="start-description">如果你收到了专业人士的邀请，<br>请在下方输入 8 位邀请码。</p>
+    <label class="invite-label" for="input-code">邀请码</label>
     <div class="invite-box">
       <input id="input-code" type="text" maxlength="8" placeholder="请输入邀请码"
              autocomplete="off" spellcheck="false">
-      <button id="btn-start" class="btn-primary" disabled>开始测评</button>
+      <button id="btn-start" class="btn-primary" disabled>开始测评 <span aria-hidden="true">→</span></button>
     </div>
     <p id="code-tip" class="tip-text hidden"></p>
 
     <p class="anon-entry">
       <button class="link-btn" id="btn-anon">没有邀请码？可以匿名自测</button>
     </p>
+    <p class="start-note">不必急着给自己答案，按真实感受作答就好。<br>本测评不代表临床诊断。</p>
+    </div>
   </section>
 
   <!-- 知情同意 -->

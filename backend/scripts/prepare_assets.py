@@ -13,7 +13,11 @@ def main():
         target = PUBLIC / name
         if target.exists():
             shutil.rmtree(target)
-        shutil.copytree(source, target)
+        target.mkdir(parents=True)
+        shutil.copy2(source / "index.html", target / "index.html")
+        # HTML 使用 /patient/static 和 /doctor/static；目录必须与引用一致。
+        for folder in ("css", "js"):
+            shutil.copytree(source / folder, target / "static" / folder)
         print(f"{source.name} -> {target}")
 
 
